@@ -2,23 +2,13 @@ package main
 
 import (
 	"fmt"
-	"scout/internal/scanner"
+	"os"
+	"scout/internal/commands"
 )
 
 func main() {
-	scan, err := scanner.New(`.`)
-	if err != nil {
-		fmt.Println("Erroe initializing Scanner: ", err)
-	}
-
-	if err := scan.Scan(); err != nil {
-		fmt.Print("Error Scanning: ", err)
-	}
-
-	for _, results := range scan.Results {
-		fmt.Println("Name: ", results.Name)
-		// fmt.Println("Mod Time: ", results.ModificationTime)
-		// fmt.Println("Extension: ", results.Extension)
-		fmt.Println("Size: ", results.Size)
+	if err := commands.Execute(); err != nil {
+		fmt.Println("Error: ", err)
+		os.Exit(1)
 	}
 }

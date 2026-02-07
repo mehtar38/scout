@@ -109,10 +109,9 @@ func (s *Scanner) GetDirectories() []Metadata {
 }
 
 func (s *Scanner) GetAllFilesBySize() []Metadata {
-	sortedFiles := make([]Metadata, len(s.Results))
-	copy(sortedFiles, s.Results)
+	sortedFiles := s.GetFiles()
 
-	sort.Slice(sortedFiles, func(i, j int) bool { return sortedFiles[i].Size < sortedFiles[j].Size })
+	sort.Slice(sortedFiles, func(i, j int) bool { return sortedFiles[i].Size > sortedFiles[j].Size })
 	return sortedFiles
 }
 
@@ -126,10 +125,22 @@ func (s *Scanner) GetNLargestFilesBySize(n int) []Metadata {
 	return sortedFiles[:n]
 }
 
+func (s *Scanner) GetNSmallestFilesBySize(n int) []Metadata {
+	sortedFiles := s.GetFiles()
+
+	sort.Slice(sortedFiles, func(i, j int) bool { return sortedFiles[i].Size < sortedFiles[j].Size })
+
+	if n > len(sortedFiles) {
+		n = len(sortedFiles)
+	}
+
+	return sortedFiles[:n]
+}
+
 func (s *Scanner) GetAllDirectoriesBySize() []Metadata {
 	dires := s.GetDirectories()
 
-	sort.Slice(dires, func(i, j int) bool { return dires[i].DirSize < dires[j].DirSize })
+	sort.Slice(dires, func(i, j int) bool { return dires[i].DirSize > dires[j].DirSize })
 	return dires
 }
 
@@ -143,24 +154,25 @@ func (s *Scanner) GetNLargestDirectoriesBySize(n int) []Metadata {
 	return sortedDires[:n]
 }
 
-func (s *Scanner) SortByModTimeDesc() []Metadata {
-	sortedFiles := make([]Metadata, len(s.Results))
-	copy(sortedFiles, s.Results)
+func (s *Scanner) GetNSmallestDirectoriesBySize(n int) []Metadata {
+	dires := s.GetDirectories()
 
-	sort.Slice(sortedFiles, func(i, j int) bool { return sortedFiles[i].ModificationTime.After(sortedFiles[j].ModificationTime) })
-	return sortedFiles
-}
+	sort.Slice(dires, func(i, j int) bool { return dires[i].DirSize < dires[j].DirSize })
 
-func (s *Scanner) SortByModTimeAsc() []Metadata {
-	sortedFiles := make([]Metadata, len(s.Results))
-	copy(sortedFiles, s.Results)
+	if n > len(dires) {
+		n = len(dires)
+	}
 
-	sort.Slice(sortedFiles, func(i, j int) bool { return sortedFiles[i].ModificationTime.Before(sortedFiles[j].ModificationTime) })
-	return sortedFiles
+	return dires[:n]
 }
 
 func (s *Scanner) GetNRecentlyModFiles(n int) []Metadata {
-	files := s.SortByModTimeDesc()
+	files := s.GetFiles()
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].ModificationTime.After(files[j].ModificationTime)
+	})
+
 	if n > len(files) {
 		n = len(files)
 	}
@@ -168,13 +180,46 @@ func (s *Scanner) GetNRecentlyModFiles(n int) []Metadata {
 	return files[:n]
 }
 
+func (s *Scanner) GetNRecentlyModDirs(n int) []Metadata {
+	dirs := s.GetDirectories()
+
+	sort.Slice(dirs, func(i, j int) bool {
+		return dirs[i].ModificationTime.After(dirs[j].ModificationTime)
+	})
+
+	if n > len(dirs) {
+		n = len(dirs)
+	}
+
+	return dirs[:n]
+}
+
 func (s *Scanner) GetNLeastModFiles(n int) []Metadata {
-	files := s.SortByModTimeAsc()
+	files := s.GetFiles()
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].ModificationTime.Before(files[j].ModificationTime)
+	})
+
 	if n > len(files) {
 		n = len(files)
 	}
 
 	return files[:n]
+}
+
+func (s *Scanner) GetNLeastModDirs(n int) []Metadata {
+	dirs := s.GetDirectories()
+
+	sort.Slice(dirs, func(i, j int) bool {
+		return dirs[i].ModificationTime.Before(dirs[j].ModificationTime)
+	})
+
+	if n > len(dirs) {
+		n = len(dirs)
+	}
+
+	return dirs[:n]
 }
 
 func (s *Scanner) GetFilesByExtension(ext string) []Metadata {

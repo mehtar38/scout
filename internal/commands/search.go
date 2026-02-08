@@ -2,9 +2,8 @@ package commands
 
 import (
 	"fmt"
-	"strings"
-
 	"scout/internal/scanner"
+	"strings"
 
 	"github.com/spf13/cobra"
 )

@@ -222,6 +222,32 @@ func (s *Scanner) GetNLeastModDirs(n int) []Metadata {
 	return dirs[:n]
 }
 
+func (s *Scanner) GetFilesOlderThan(days int) []Metadata {
+	filterDate := time.Now().AddDate(0, 0, -days)
+	files := []Metadata{}
+
+	for _, file := range s.GetFiles() {
+		if file.ModificationTime.Before(filterDate) {
+			files = append(files, file)
+		}
+	}
+
+	return files
+}
+
+func (s *Scanner) GetFilesNewerThan(days int) []Metadata {
+	filterDate := time.Now().AddDate(0, 0, -days)
+	files := []Metadata{}
+
+	for _, file := range s.GetFiles() {
+		if file.ModificationTime.After(filterDate) {
+			files = append(files, file)
+		}
+	}
+
+	return files
+}
+
 func (s *Scanner) GetFilesByExtension(ext string) []Metadata {
 	files := []Metadata{}
 

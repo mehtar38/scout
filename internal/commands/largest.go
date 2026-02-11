@@ -23,7 +23,7 @@ var largestCmd = &cobra.Command{
 
 func init() {
 	largestCmd.Flags().BoolVar(&largestFiles, "files", false, "Show only files")
-	largestCmd.Flags().BoolVar(&largestDirs, "dirs", false, "Show only DIrectories")
+	largestCmd.Flags().BoolVar(&largestDirs, "dirs", false, "Show only Directories")
 
 	rootCmd.AddCommand(largestCmd)
 }

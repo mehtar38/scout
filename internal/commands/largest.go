@@ -37,8 +37,8 @@ func runLargest(cmd *cobra.Command, args []string) {
 		if err == nil {
 			n = stringN
 		} else {
-			fmt.Println("Please enter a valid number")
-			return
+			fmt.Println("Printing 10 results by default: ")
+			n = 10
 		}
 	}
 	if len(args) == 2 {

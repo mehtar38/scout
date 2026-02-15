@@ -5,4 +5,8 @@ type CommandParser struct {
 	Count    int
 	Filters  map[string]string
 	Response string
+	Path     string
+	Pattern  string
+	Flags    map[string]bool
+	Chain    []string
 }

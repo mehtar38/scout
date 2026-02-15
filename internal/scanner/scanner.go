@@ -66,15 +66,24 @@ func (s *Scanner) Scan() error {
 	})
 }
 
+// To normalize all string backslashes to forward slashes for
+func normalize(p string) string {
+	return filepath.ToSlash(p)
+}
+
 func (s *Scanner) ComputeDirSize() {
 	for i := range s.Results { //Using index here and not value because value would just be a modified copy and not the actual element
 		if s.Results[i].IsDir {
 			var SizeOfDir int64
-			dirPath := s.Results[i].Location
+			dirPath := normalize(s.Results[i].Location)
 
 			for _, entry := range s.Results {
-				if !entry.IsDir && strings.HasPrefix(entry.Location, dirPath+"/") {
-					SizeOfDir += entry.Size
+				if !entry.IsDir {
+					entryPath := normalize(entry.Location)
+
+					if strings.HasPrefix(entryPath, dirPath+"/") {
+						SizeOfDir += entry.Size
+					}
 				}
 			}
 			s.Results[i].DirSize = SizeOfDir
@@ -257,4 +266,76 @@ func (s *Scanner) GetFilesByExtension(ext string) []Metadata {
 		}
 	}
 	return files
+}
+
+func (s *Scanner) GetStats() {
+
+	// scan, err := scanner.New(path)
+	// if err != nil {
+	// 	fmt.Println("Error:", err)
+	// 	return
+	// }
+
+	// err = scan.Scan()
+	// if err != nil {
+	// 	fmt.Println("Error scanning:", err)
+	// 	return
+	// }
+
+	s.ComputeDirSize()
+
+	// 1. Total files vs directories
+	files := s.GetFiles()
+	dirs := s.GetDirectories()
+	total := len(files) + len(dirs)
+
+	fmt.Println("Total items: ", total)
+	fmt.Println("Files: ", len(files))
+	fmt.Println("Directories: ", len(dirs))
+
+	// 2. Total size
+	var fileSize int
+	var dirSize int
+
+	for _, results := range s.Results {
+		if results.IsDir {
+			dirSize += int(results.DirSize)
+		} else {
+			fileSize += int(results.Size)
+		}
+	}
+
+	fmt.Println("Total Size: ", (dirSize + fileSize))
+	fmt.Println("Files: ", fileSize)
+	fmt.Println("Directories: ", dirSize)
+	fmt.Println("Average File Size: ", (fileSize / len(files)))
+	fmt.Println("Average Directory Size: ", (dirSize / len(dirs)))
+
+	// 3. Largest/smallest file
+	largestFile := s.GetNLargestFilesBySize(1)
+	fmt.Println("Largest File: ", largestFile[0].Name, " ", largestFile[0].Size, " bytes")
+
+	smallestFiles := s.GetNSmallestFilesBySize(1)
+	fmt.Println("Smallest File: ", smallestFiles[0].Name, " ", smallestFiles[0].Size, " bytes")
+
+	// 4. File type counts (count by Extension)
+	fmt.Println("File Types: ")
+	pdfs := s.GetFilesByExtension(".pdf")
+	pngs := s.GetFilesByExtension(".png")
+	jpgs := s.GetFilesByExtension(".jpg")
+	docx := s.GetFilesByExtension(".docx")
+	txt := s.GetFilesByExtension(".txt")
+	fmt.Println(".pdf: ", len(pdfs), "files")
+	fmt.Println(".docx: ", len(docx), "files")
+	fmt.Println(".jpg: ", len(jpgs), "files")
+	fmt.Println(".png: ", len(pngs), "files")
+	fmt.Println(".txt ", len(txt), "files")
+
+	// 5. Most recent/oldest file
+	lastMod := s.GetNRecentlyModFiles(1)
+	fmt.Println("Last Modified File: ", lastMod[0].Name)
+
+	oldMod := s.GetNLeastModFiles(1)
+	fmt.Println("Oldest Modified File: ", oldMod[0].Name)
+
 }

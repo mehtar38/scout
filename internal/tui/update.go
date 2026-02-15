@@ -147,7 +147,7 @@ func (m Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleBrowserKeys handles input in browser view
+// input in browser view
 func (m Model) handleBrowserKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if !m.scanned {
 		return m, nil

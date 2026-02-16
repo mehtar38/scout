@@ -59,13 +59,16 @@ type Model struct {
 	searchResults       []scanner.SearchResult
 	searchInput         string
 	searchActive        bool // Whether we're typing in search box
+	searchLoading       bool
 
 	// AI state
-	aiQuery    string
-	aiResponse string
-	aiInput    string
-	aiActive   bool // Whether we're typing in AI box
-	aiResults  []scanner.Metadata
+	aiQuery          string
+	aiResponse       string
+	aiInput          string
+	aiActive         bool // Whether we're typing in AI box
+	aiResults        []scanner.Metadata
+	showingAIResults bool
+	aiLoading        bool
 
 	width  int
 	height int

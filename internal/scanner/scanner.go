@@ -39,6 +39,12 @@ func New(path string) (*Scanner, error) {
 
 func (s *Scanner) Scan() error {
 	return filepath.WalkDir(s.path, func(path string, d fs.DirEntry, err error) error {
+		if d.IsDir() {
+			switch d.Name() {
+			case "node_modules", "vendor", "build", "dist":
+				return filepath.SkipDir
+			}
+		}
 		if err != nil {
 			s.Errors = append(s.Errors, err)
 			return nil // Continue walking the tree cause Walk stops the whole tree if it encounters any errors

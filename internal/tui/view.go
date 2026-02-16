@@ -91,9 +91,9 @@ func (m Model) View() string {
 	if m.err != nil {
 		b.WriteString(errorStyle.Render(fmt.Sprintf("Error: %v", m.err)))
 	} else if m.scanning {
-		b.WriteString(dimTextStyle.Render("🔄 Scanning directory..."))
+		b.WriteString(dimTextStyle.Render("Scanning directory..."))
 	} else if !m.scanned {
-		b.WriteString(dimTextStyle.Render("⏳ Waiting for scan to complete..."))
+		b.WriteString(dimTextStyle.Render("⏳ Scout is scanning your files..."))
 	} else {
 		b.WriteString(m.renderActiveTab())
 	}
@@ -248,7 +248,7 @@ func (m Model) renderBrowser() string {
 		m.getFilterModeName(),
 		m.getExtensionFilter())))
 	b.WriteString("\n")
-	b.WriteString(dimTextStyle.Render("s: sort | S: reverse | f: filter | e: ext filter"))
+	b.WriteString(dimTextStyle.Render("s: sort | S: reverse | f: filter | e: ext. filter | o: open"))
 	b.WriteString("\n\n")
 
 	// Get and display items
@@ -337,7 +337,7 @@ func (m Model) renderSearch() string {
 	if m.searchCaseSensitive {
 		caseStatus = "ON"
 	}
-	b.WriteString(dimTextStyle.Render(fmt.Sprintf("r: regex [%s] | c: case-sensitive [%s]", regexStatus, caseStatus)))
+	b.WriteString(dimTextStyle.Render(fmt.Sprintf("r: regex [%s] | c: case-sensitive [%s]| o: open", regexStatus, caseStatus)))
 	b.WriteString("\n\n")
 
 	// Results
@@ -345,12 +345,12 @@ func (m Model) renderSearch() string {
 		b.WriteString(lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("Found matches in %d files:", len(m.searchResults))))
 		b.WriteString("\n\n")
 
-		visibleHeight := m.height - 18
+		headerLines := strings.Count(b.String(), "\n")
+		visibleHeight := m.height - headerLines - 10 // Account for borders
 		if visibleHeight < 3 {
 			visibleHeight = 3
 		}
 
-		// Use scroll offset!
 		start := m.scrollOffset
 		end := start + visibleHeight
 		if end > len(m.searchResults) {
@@ -369,10 +369,11 @@ func (m Model) renderSearch() string {
 			b.WriteString("\n")
 		}
 
-		// if len(m.searchResults) > visibleHeight {
-		// 	b.WriteString("\n")
-		// 	b.WriteString(dimTextStyle.Render(fmt.Sprintf("Showing %d-%d of %d results", start+1, end, len(m.searchResults))))
-		// }
+		if len(m.searchResults) > visibleHeight {
+			b.WriteString("\n")
+			b.WriteString(dimTextStyle.Render(fmt.Sprintf("Showing %d-%d of %d results", start+1, end, len(m.searchResults))))
+		}
+
 	} else if m.searchPattern != "" && !m.searchActive {
 		b.WriteString(dimTextStyle.Render("No matches found"))
 	}
@@ -387,6 +388,11 @@ func (m Model) renderAI() string {
 	// Header
 	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("AI Assistant"))
 	b.WriteString("\n\n")
+
+	if m.aiLoading {
+		b.WriteString(lipgloss.NewStyle().Foreground(accentColor).Render("⏳ Processing your query..."))
+		return borderStyle.Render(b.String())
+	}
 
 	// AI input
 	if m.aiActive {
@@ -434,10 +440,10 @@ func (m Model) renderAI() string {
 				}
 			}
 		} else {
-			b.WriteString(dimTextStyle.Render("No queries yet. Try asking:\n"))
-			b.WriteString(dimTextStyle.Render("  • \"show me the 10 largest files\"\n"))
-			b.WriteString(dimTextStyle.Render("  • \"find all images modified this week\"\n"))
-			b.WriteString(dimTextStyle.Render("  • \"list all Go files\"\n"))
+			b.WriteString(dimTextStyle.Render("Naviagte thorugh with Scout! Try asking: \n"))
+			b.WriteString(dimTextStyle.Render("show me the 10 largest files\n"))
+			b.WriteString(dimTextStyle.Render("find all images modified this week\n"))
+			b.WriteString(dimTextStyle.Render("list all Go files\n"))
 		}
 	}
 
@@ -487,8 +493,6 @@ func (m Model) renderStatusBar() string {
 		Render(status)
 }
 
-// Helper methods
-
 // getBrowserItems returns the items to display in browser based on filters and sorts
 func (m Model) getBrowserItems() []scanner.Metadata {
 	var items []scanner.Metadata
@@ -497,7 +501,6 @@ func (m Model) getBrowserItems() []scanner.Metadata {
 	if len(m.aiResults) > 0 && m.activeTab == TabBrowser {
 		items = m.aiResults
 	} else {
-		// Apply filter
 		switch m.filterMode {
 		case FilterFiles:
 			items = m.scanner.GetFiles()
@@ -507,11 +510,31 @@ func (m Model) getBrowserItems() []scanner.Metadata {
 			items = m.scanner.Results
 		}
 
-		// Apply extension filter
 		if m.filterExt != "" {
 			filtered := []scanner.Metadata{}
 			for _, item := range items {
 				if item.Extension == m.filterExt {
+					filtered = append(filtered, item)
+				}
+			}
+			items = filtered
+		}
+	}
+
+	if m.showingAIResults {
+		switch m.filterMode {
+		case FilterFiles:
+			filtered := []scanner.Metadata{}
+			for _, item := range items {
+				if !item.IsDir {
+					filtered = append(filtered, item)
+				}
+			}
+			items = filtered
+		case FilterDirs:
+			filtered := []scanner.Metadata{}
+			for _, item := range items {
+				if item.IsDir {
 					filtered = append(filtered, item)
 				}
 			}
@@ -592,7 +615,6 @@ func (m Model) getExtensionFilter() string {
 	return m.filterExt
 }
 
-// formatSize formats bytes into human-readable size
 func formatSize(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
@@ -606,7 +628,6 @@ func formatSize(bytes int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
-// truncate truncates a string to maxLen with ellipsis
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s

@@ -3,8 +3,12 @@ package tui
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"scout/internal/ai"
 	"scout/internal/scanner"
+	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -33,6 +37,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case searchCompleteMsg:
+		m.searchLoading = false
 		if msg.err != nil {
 			m.err = msg.err
 			return m, nil
@@ -42,6 +47,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case aiQueryCompleteMsg:
+		m.aiLoading = false
 		if msg.err != nil {
 			m.err = msg.err
 			return m, nil
@@ -133,9 +139,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleDashboardKeys handles input in dashboard view
+// input in dashboard view
 func (m Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Dashboard is mostly read-only, just navigation
 	switch msg.String() {
 	case "up", "k":
 		if m.cursor > 0 {
@@ -180,6 +185,30 @@ func (m Model) handleBrowserKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(items) > visibleHeight {
 			m.scrollOffset = len(items) - visibleHeight
 		}
+	case "o", "enter":
+		if len(items) > 0 && m.cursor < len(items) {
+			item := items[m.cursor]
+			//cross-platform
+			var cmd *exec.Cmd
+			switch runtime.GOOS {
+			case "darwin":
+				cmd = exec.Command("open", "-R", item.Location)
+			case "windows":
+				cmd = exec.Command("explorer", "/select,", item.Location)
+			default: // linux
+				// Open parent directory
+				cmd = exec.Command("xdg-open", filepath.Dir(item.Location))
+			}
+			cmd.Start()
+		}
+	case "c":
+		// Clear AI results and go back to normal browsing
+		if m.showingAIResults {
+			m.aiResults = []scanner.Metadata{}
+			m.showingAIResults = false
+			m.cursor = 0
+			m.scrollOffset = 0
+		}
 	case "s":
 		// Cycle sort mode
 		m.sortMode = (m.sortMode + 1) % 4
@@ -196,12 +225,42 @@ func (m Model) handleBrowserKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cursor = 0
 		m.scrollOffset = 0
 	case "e":
-		// Toggle extension filter (placeholder - would need input)
-		if m.filterExt == "" {
-			m.filterExt = ".go" // Example
+		// Cycle through extensions present in current results
+		// Get ALL items (not just filtered) to find all extensions
+		var allItems []scanner.Metadata
+		if m.showingAIResults && len(m.aiResults) > 0 {
+			allItems = m.aiResults
 		} else {
-			m.filterExt = ""
+			allItems = m.scanner.Results // Use ALL results, not filtered
 		}
+
+		extensions := []string{""} // "" means no filter
+		extSet := make(map[string]bool)
+
+		for _, item := range allItems {
+			if item.Extension != "" && !item.IsDir {
+				extSet[item.Extension] = true
+			}
+		}
+
+		for ext := range extSet {
+			extensions = append(extensions, ext)
+		}
+
+		if len(extensions) > 1 {
+			sort.Strings(extensions[1:]) // Keep "" first, sort rest
+		}
+
+		// Find current and move to next
+		currentIdx := 0
+		for i, ext := range extensions {
+			if ext == m.filterExt {
+				currentIdx = i
+				break
+			}
+		}
+
+		m.filterExt = extensions[(currentIdx+1)%len(extensions)]
 		m.cursor = 0
 		m.scrollOffset = 0
 	}
@@ -241,13 +300,14 @@ func (m Model) handleSearchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleSearchInput handles text input for search
+// input for search
 func (m Model) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		if m.searchInput != "" && m.scanned {
 			m.searchPattern = m.searchInput
 			m.searchActive = false
+			m.searchLoading = true
 			m.cursor = 0
 			return m, executeSearch(m.scanner, m.searchPattern, m.searchRegex, m.searchCaseSensitive)
 		}
@@ -257,6 +317,9 @@ func (m Model) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.searchInput) > 0 {
 			m.searchInput = m.searchInput[:len(m.searchInput)-1]
 		}
+	case "left", "right":
+		// Just ignore them, we don't track cursor position
+		return m, nil
 	default:
 		// Add character to input
 		if len(msg.String()) == 1 {
@@ -266,25 +329,27 @@ func (m Model) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleAIKeys handles input in AI view
+// input in AI view
 func (m Model) handleAIKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter", "/":
 		// Start AI input
 		m.aiActive = true
 		m.aiInput = ""
+		m.aiLoading = true
 		return m, nil
 	case "v":
 		// View AI results in browser
 		if len(m.aiResults) > 0 {
 			m.activeTab = TabBrowser
+			m.showingAIResults = true
 			return m, nil
 		}
 	}
 	return m, nil
 }
 
-// handleAIInput handles text input for AI queries
+// text input for AI queries
 func (m Model) handleAIInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
@@ -308,40 +373,58 @@ func (m Model) handleAIInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// aiQueryCompleteMsg is sent when AI query finishes
+// sent when AI query finishes
 type aiQueryCompleteMsg struct {
 	response string
 	results  []scanner.Metadata
 	err      error
 }
 
-// executeAIQuery sends query to AI and gets results
+// sends query to AI and gets results
 func executeAIQuery(query string, s *scanner.Scanner) tea.Cmd {
 	return func() tea.Msg {
 		godotenv.Load()
 		apiKey := os.Getenv("GEMINI_API_KEY")
 		if apiKey == "" {
-			return aiQueryCompleteMsg{err: fmt.Errorf("GEMINI_API_KEY not found")}
+			return aiQueryCompleteMsg{
+				response: "Error: GEMINI_API_KEY not found in environment",
+				err:      fmt.Errorf("GEMINI_API_KEY not found"),
+			}
 		}
 
 		aiClient, err := ai.NewClient(apiKey)
 		if err != nil {
-			return aiQueryCompleteMsg{err: err}
+			return aiQueryCompleteMsg{
+				response: fmt.Sprintf("Error connecting to AI: %v", err),
+				err:      err,
+			}
 		}
 
 		parsedCmd, err := aiClient.ParseQuery(query)
 		if err != nil {
-			return aiQueryCompleteMsg{err: err}
+			return aiQueryCompleteMsg{
+				response: fmt.Sprintf("Error parsing query: %v", err),
+				err:      err,
+			}
 		}
 
-		// ADD THIS DEBUG LINE
-		fmt.Fprintf(os.Stderr, "DEBUG: Command=%s, Count=%d, Flags=%+v\n",
-			parsedCmd.Command, parsedCmd.Count, parsedCmd.Flags)
+		if parsedCmd.Command == "none" || parsedCmd.Command == "" {
+			return aiQueryCompleteMsg{
+				response: "Sorry, Scout isn't able to handle this query yet. Try queries like:\n• 'show me the 10 largest files'\n• 'find all PDF files'\n• 'list recently modified files'",
+				results:  []scanner.Metadata{},
+				err:      nil,
+			}
+		}
 
 		results := executeAICommandForTUI(parsedCmd, s)
 
-		// ADD THIS TOO
-		fmt.Fprintf(os.Stderr, "DEBUG: Got %d results\n", len(results))
+		if len(results) == 0 {
+			return aiQueryCompleteMsg{
+				response: parsedCmd.Response + "\n\nNo results found matching your query.",
+				results:  results,
+				err:      nil,
+			}
+		}
 
 		return aiQueryCompleteMsg{
 			response: parsedCmd.Response,
@@ -351,7 +434,6 @@ func executeAIQuery(query string, s *scanner.Scanner) tea.Cmd {
 	}
 }
 
-// executeAICommandForTUI executes AI command and returns results
 func executeAICommandForTUI(cmd *ai.CommandParser, s *scanner.Scanner) []scanner.Metadata {
 	var results []scanner.Metadata
 

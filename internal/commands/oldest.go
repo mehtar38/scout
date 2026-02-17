@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"scout/internal/scanner"
+	"scout/internal/utils"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -73,7 +74,7 @@ func runOldest(cmd *cobra.Command, args []string) {
 		} else if oldestDirs {
 			results = scan.GetNLeastModDirs(n)
 		} else {
-			results = scan.Results
+			results = scan.GetNLeastModItems(n)
 		}
 	}
 
@@ -81,7 +82,18 @@ func runOldest(cmd *cobra.Command, args []string) {
 		results = results[:n]
 	}
 
+	var lines []string
 	for _, elem := range results {
-		fmt.Println(elem)
+		icon := "📄"
+		if elem.IsDir {
+			icon = "📁"
+		}
+		lines = append(lines, fmt.Sprintf("%s %-50s %12s  %s",
+			icon,
+			elem.Name,
+			utils.FormatSize(elem.Size),
+			elem.ModificationTime.Format("2006-01-02 15:04")))
 	}
+
+	utils.Paginate(lines, 20)
 }

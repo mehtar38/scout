@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"scout/internal/scanner"
+	"scout/internal/utils"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -68,10 +69,26 @@ func runLargest(cmd *cobra.Command, args []string) {
 	} else if largestDirs {
 		results = scan.GetNLargestDirectoriesBySize(n)
 	} else {
-		results = scan.Results
+		results = scan.GetNLargestItems(n)
 	}
 
-	for _, elem := range results {
-		fmt.Println(elem)
+	if len(results) == 0 {
+		fmt.Println("No results found")
+		return
 	}
+
+	var lines []string
+	for _, elem := range results {
+		icon := "📄"
+		if elem.IsDir {
+			icon = "📁"
+		}
+		lines = append(lines, fmt.Sprintf("%s %-50s %12s  %s",
+			icon,
+			elem.Name,
+			utils.FormatSize(elem.Size),
+			elem.ModificationTime.Format("2006-01-02 15:04")))
+	}
+
+	utils.Paginate(lines, 20)
 }

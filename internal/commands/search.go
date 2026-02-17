@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"scout/internal/scanner"
+	"scout/internal/utils"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -74,15 +75,18 @@ func runSearch(cmd *cobra.Command, args []string) {
 
 	fmt.Printf("Found matches in %d files:\n\n", len(results))
 
+	var lines []string
 	for _, result := range results {
 		if searchVerbose {
-			fmt.Printf("%s: %d matches\n", result.Location, result.Matches)
+			lines = append(lines, fmt.Sprintf("%s: %d matches", result.Location, result.Matches))
 			for _, lineNum := range result.LineNumbers {
-				fmt.Printf("  Line %d\n", lineNum)
+				lines = append(lines, fmt.Sprintf("  Line %d", lineNum))
 			}
-			fmt.Println()
+			lines = append(lines, "")
 		} else {
-			fmt.Printf("%s: %d matches\n", result.Location, result.Matches)
+			lines = append(lines, fmt.Sprintf("%s: %d matches", result.Location, result.Matches))
 		}
 	}
+
+	utils.Paginate(lines, 20)
 }

@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"scout/internal/utils"
 	"sort"
 	"strings"
 	"time"
@@ -130,6 +131,34 @@ func (s *Scanner) GetAllFilesBySize() []Metadata {
 	return sortedFiles
 }
 
+func (s *Scanner) GetNLargestItems(n int) []Metadata {
+	items := make([]Metadata, len(s.Results))
+	copy(items, s.Results)
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Size > items[j].Size
+	})
+
+	if len(items) > n {
+		return items[:n]
+	}
+	return items
+}
+
+func (s *Scanner) GetNSmallestItems(n int) []Metadata {
+	items := make([]Metadata, len(s.Results))
+	copy(items, s.Results)
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Size < items[j].Size
+	})
+
+	if len(items) > n {
+		return items[:n]
+	}
+	return items
+}
+
 func (s *Scanner) GetNLargestFilesBySize(n int) []Metadata {
 	sortedFiles := s.GetAllFilesBySize()
 
@@ -181,6 +210,20 @@ func (s *Scanner) GetNSmallestDirectoriesBySize(n int) []Metadata {
 	return dires[:n]
 }
 
+func (s *Scanner) GetNRecentlyModItems(n int) []Metadata {
+	items := make([]Metadata, len(s.Results))
+	copy(items, s.Results)
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].ModificationTime.After(items[j].ModificationTime)
+	})
+
+	if len(items) > n {
+		return items[:n]
+	}
+	return items
+}
+
 func (s *Scanner) GetNRecentlyModFiles(n int) []Metadata {
 	files := s.GetFiles()
 
@@ -207,6 +250,20 @@ func (s *Scanner) GetNRecentlyModDirs(n int) []Metadata {
 	}
 
 	return dirs[:n]
+}
+
+func (s *Scanner) GetNLeastModItems(n int) []Metadata {
+	items := make([]Metadata, len(s.Results))
+	copy(items, s.Results)
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].ModificationTime.Before(items[j].ModificationTime)
+	})
+
+	if len(items) > n {
+		return items[:n]
+	}
+	return items
 }
 
 func (s *Scanner) GetNLeastModFiles(n int) []Metadata {
@@ -284,72 +341,85 @@ func (s *Scanner) GetFilesByExtension(ext string) []Metadata {
 
 func (s *Scanner) GetStats() {
 
-	// scan, err := scanner.New(path)
-	// if err != nil {
-	// 	fmt.Println("Error:", err)
-	// 	return
-	// }
-
-	// err = scan.Scan()
-	// if err != nil {
-	// 	fmt.Println("Error scanning:", err)
-	// 	return
-	// }
-
 	s.ComputeDirSize()
 
-	// 1. Total files vs directories
 	files := s.GetFiles()
 	dirs := s.GetDirectories()
-	total := len(files) + len(dirs)
 
-	fmt.Println("Total items: ", total)
-	fmt.Println("Files: ", len(files))
-	fmt.Println("Directories: ", len(dirs))
+	fmt.Println("=== System Statistics ===")
+	fmt.Printf("Total Items: %d\n", len(files)+len(dirs))
+	fmt.Printf("Files: %d\n", len(files))
+	fmt.Printf("Directories: %d\n\n", len(dirs))
 
-	// 2. Total size
-	var fileSize int
-	var dirSize int
+	// --- Size Stats ---
+	var totalFileSize, totalDirSize int64
+	for _, f := range files {
+		totalFileSize += f.Size
+	}
+	for _, d := range dirs {
+		totalDirSize += d.DirSize
+	}
 
-	for _, results := range s.Results {
-		if results.IsDir {
-			dirSize += int(results.DirSize)
-		} else {
-			fileSize += int(results.Size)
+	fmt.Println("=== Size Statistics ===")
+	fmt.Printf("Total Size: %s\n", utils.FormatSize(totalFileSize+totalDirSize))
+	fmt.Printf("Files: %s\n", utils.FormatSize(totalFileSize))
+	fmt.Printf("Directories: %s\n", utils.FormatSize(totalDirSize))
+
+	if len(files) > 0 {
+		fmt.Printf("Avg File Size: %s\n", utils.FormatSize(totalFileSize/int64(len(files))))
+	}
+	if len(dirs) > 0 {
+		fmt.Printf("Avg Dir Size: %s\n", utils.FormatSize(totalDirSize/int64(len(dirs))))
+	}
+	fmt.Println()
+
+	// --- Extremes ---
+	if len(files) > 0 {
+		largest := s.GetNLargestFilesBySize(1)[0]
+		smallest := s.GetNSmallestFilesBySize(1)[0]
+
+		fmt.Println("=== Extremes ===")
+		fmt.Printf("Largest File:  %s (%s)\n", largest.Name, utils.FormatSize(largest.Size))
+		fmt.Printf("Smallest File: %s (%s)\n\n", smallest.Name, utils.FormatSize(smallest.Size))
+	}
+
+	// --- Modification Times ---
+	if len(files) > 0 {
+		recent := s.GetNRecentlyModFiles(1)[0]
+		oldest := s.GetNLeastModFiles(1)[0]
+
+		fmt.Println("=== Modification Times ===")
+		fmt.Printf("Most Recent: %s (%s)\n", recent.Name, recent.ModificationTime.Format("2006-01-02 15:04"))
+		fmt.Printf("Oldest:      %s (%s)\n\n", oldest.Name, oldest.ModificationTime.Format("2006-01-02 15:04"))
+	}
+
+	// --- Extensions ---
+	extCounts := make(map[string]int)
+	for _, f := range files {
+		if f.Extension != "" {
+			extCounts[f.Extension]++
 		}
 	}
 
-	fmt.Println("Total Size: ", (dirSize + fileSize))
-	fmt.Println("Files: ", fileSize)
-	fmt.Println("Directories: ", dirSize)
-	fmt.Println("Average File Size: ", (fileSize / len(files)))
-	fmt.Println("Average Directory Size: ", (dirSize / len(dirs)))
+	if len(extCounts) > 0 {
+		fmt.Println("=== File Extensions ===")
 
-	// 3. Largest/smallest file
-	largestFile := s.GetNLargestFilesBySize(1)
-	fmt.Println("Largest File: ", largestFile[0].Name, " ", largestFile[0].Size, " bytes")
+		type extCount struct {
+			ext   string
+			count int
+		}
 
-	smallestFiles := s.GetNSmallestFilesBySize(1)
-	fmt.Println("Smallest File: ", smallestFiles[0].Name, " ", smallestFiles[0].Size, " bytes")
+		var exts []extCount
+		for ext, count := range extCounts {
+			exts = append(exts, extCount{ext, count})
+		}
 
-	// 4. File type counts (count by Extension)
-	fmt.Println("File Types: ")
-	pdfs := s.GetFilesByExtension(".pdf")
-	pngs := s.GetFilesByExtension(".png")
-	jpgs := s.GetFilesByExtension(".jpg")
-	docx := s.GetFilesByExtension(".docx")
-	txt := s.GetFilesByExtension(".txt")
-	fmt.Println(".pdf: ", len(pdfs), "files")
-	fmt.Println(".docx: ", len(docx), "files")
-	fmt.Println(".jpg: ", len(jpgs), "files")
-	fmt.Println(".png: ", len(pngs), "files")
-	fmt.Println(".txt ", len(txt), "files")
+		sort.Slice(exts, func(i, j int) bool {
+			return exts[i].count > exts[j].count
+		})
 
-	// 5. Most recent/oldest file
-	lastMod := s.GetNRecentlyModFiles(1)
-	fmt.Println("Last Modified File: ", lastMod[0].Name)
-
-	oldMod := s.GetNLeastModFiles(1)
-	fmt.Println("Oldest Modified File: ", oldMod[0].Name)
-
+		for _, ec := range exts {
+			fmt.Printf("%s: %d files\n", ec.ext, ec.count)
+		}
+	}
 }

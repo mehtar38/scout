@@ -5,6 +5,7 @@ import (
 	"os"
 	"scout/internal/ai"
 	"scout/internal/scanner"
+	"scout/internal/utils"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -252,14 +253,25 @@ func displayResults(results []scanner.Metadata) {
 	}
 
 	fmt.Printf("Found %d items:\n\n", len(results))
+
+	var lines []string
 	for _, item := range results {
-		fmt.Printf("📄 %s\n", item.Name)
-		fmt.Printf("   Location: %s\n", item.Location)
+		icon := "📄"
 		if item.IsDir {
-			fmt.Printf("   Size: %d bytes (total)\n", item.DirSize)
-		} else {
-			fmt.Printf("   Size: %d bytes\n", item.Size)
+			icon = "📁"
 		}
-		fmt.Printf("   Modified: %s\n\n", item.ModificationTime.Format("2006-01-02 15:04"))
+
+		size := utils.FormatSize(item.Size)
+		if item.IsDir {
+			size = utils.FormatSize(item.DirSize) + " (total)"
+		}
+
+		lines = append(lines, fmt.Sprintf("%s %s", icon, item.Name))
+		lines = append(lines, fmt.Sprintf("   Location: %s", item.Location))
+		lines = append(lines, fmt.Sprintf("   Size: %s", size))
+		lines = append(lines, fmt.Sprintf("   Modified: %s", item.ModificationTime.Format("2006-01-02 15:04")))
+		lines = append(lines, "")
 	}
+
+	utils.Paginate(lines, 20)
 }

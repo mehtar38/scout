@@ -9,7 +9,9 @@ import (
 	"scout/internal/ai"
 	"scout/internal/scanner"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"
@@ -457,6 +459,9 @@ func executeAIQuery(query string, s *scanner.Scanner) tea.Cmd {
 
 		results := executeAICommandForTUI(parsedCmd, s)
 
+		fmt.Fprintf(os.Stderr, "DEBUG: AI returned - Command=%s, Pattern=%s, Filters=%+v\n",
+			parsedCmd.Command, parsedCmd.Pattern, parsedCmd.Filters)
+
 		if len(results) == 0 {
 			return aiQueryCompleteMsg{
 				response: parsedCmd.Response + "\n\nNo results found matching your query.",
@@ -470,10 +475,42 @@ func executeAIQuery(query string, s *scanner.Scanner) tea.Cmd {
 			results:  results,
 			err:      nil,
 		}
+
 	}
 }
 
 func executeAICommandForTUI(cmd *ai.CommandParser, s *scanner.Scanner) []scanner.Metadata {
+	fmt.Fprintf(os.Stderr, "DEBUG: Command=%s, Days=%d, Chain=%v, Filters=%+v\n",
+		cmd.Command, cmd.Days, cmd.Chain, cmd.Filters)
+
+	var results []scanner.Metadata
+
+	results = executeInitialCommand(cmd, s)
+	fmt.Fprintf(os.Stderr, "DEBUG: After initial command: %d results\n", len(results))
+	for _, r := range results[:min(3, len(results))] {
+		fmt.Fprintf(os.Stderr, "DEBUG: Sample - %s (%s)\n", r.Name, r.Extension)
+	}
+
+	if len(cmd.Chain) > 0 {
+		for _, chainStep := range cmd.Chain {
+			results = executeChainStep(chainStep, results, s)
+			fmt.Fprintf(os.Stderr, "DEBUG: After chain step '%s': %d results\n", chainStep, len(results))
+			for _, r := range results[:min(3, len(results))] {
+				fmt.Fprintf(os.Stderr, "DEBUG: Sample - %s (%s)\n", r.Name, r.Extension)
+			}
+		}
+	}
+	return results
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func executeInitialCommand(cmd *ai.CommandParser, s *scanner.Scanner) []scanner.Metadata {
 	var results []scanner.Metadata
 
 	switch cmd.Command {
@@ -485,6 +522,16 @@ func executeAICommandForTUI(cmd *ai.CommandParser, s *scanner.Scanner) []scanner
 		} else {
 			results = s.Results
 		}
+
+		if ext, ok := cmd.Filters["extension"]; ok && ext != "" {
+			fmt.Fprintf(os.Stderr, "DEBUG: Applying extension filter: '%s'\n", ext)
+			fmt.Fprintf(os.Stderr, "DEBUG: Before filter: %d results\n", len(results))
+			fmt.Fprintf(os.Stderr, "DEBUG: Sample extensions: %s, %s, %s\n",
+				results[0].Extension, results[1].Extension, results[2].Extension)
+			results = filterByExtension(results, ext)
+			fmt.Fprintf(os.Stderr, "DEBUG: After filter: %d results\n", len(results))
+		}
+
 	case "largest":
 		if cmd.Flags["files"] {
 			results = s.GetNLargestFilesBySize(cmd.Count)
@@ -514,6 +561,9 @@ func executeAICommandForTUI(cmd *ai.CommandParser, s *scanner.Scanner) []scanner
 				results = s.GetNRecentlyModFiles(cmd.Count)
 			}
 		}
+		if ext, ok := cmd.Filters["extension"]; ok && ext != "" {
+			results = filterByExtension(results, ext)
+		}
 	case "oldest":
 		if cmd.Days > 0 {
 			results = s.GetFilesOlderThan(cmd.Days)
@@ -528,6 +578,9 @@ func executeAICommandForTUI(cmd *ai.CommandParser, s *scanner.Scanner) []scanner
 				results = s.GetNLeastModFiles(cmd.Count)
 			}
 		}
+		if ext, ok := cmd.Filters["extension"]; ok && ext != "" {
+			results = filterByExtension(results, ext)
+		}
 	case "search":
 		opts := scanner.SearchOptions{
 			Pattern:       cmd.Pattern,
@@ -535,11 +588,17 @@ func executeAICommandForTUI(cmd *ai.CommandParser, s *scanner.Scanner) []scanner
 			CaseSensitive: cmd.Flags["case_sensitive"],
 		}
 
+		fmt.Fprintf(os.Stderr, "DEBUG: Search - Pattern=%s, Regex=%v, CaseSensitive=%v\n",
+			opts.Pattern, opts.UseRegex, opts.CaseSensitive)
+
 		if ext, ok := cmd.Filters["extension"]; ok && ext != "" {
 			opts.Extensions = strings.Split(ext, ",")
+			fmt.Fprintf(os.Stderr, "DEBUG: Search - Extensions=%v\n", opts.Extensions)
 		}
 
 		searchResults := s.Search(opts)
+
+		fmt.Fprintf(os.Stderr, "DEBUG: Search found %d files\n", len(searchResults))
 
 		for _, sr := range searchResults {
 			for _, item := range s.Results {
@@ -552,12 +611,140 @@ func executeAICommandForTUI(cmd *ai.CommandParser, s *scanner.Scanner) []scanner
 
 	}
 
-	// Apply extension filter if present
-	if ext, ok := cmd.Filters["extension"]; ok && ext != "" {
-		results = filterByExtension(results, ext)
+	return results
+}
+
+func executeChainStep(step string, currentResults []scanner.Metadata, s *scanner.Scanner) []scanner.Metadata {
+	parts := strings.Split(step, ":")
+	command := parts[0]
+	param := ""
+	if len(parts) > 1 {
+		param = parts[1]
 	}
 
-	return results
+	switch command {
+	case "largest":
+		// Get N largest from current results
+		n := 1
+		if param != "" {
+			n, _ = strconv.Atoi(param)
+		}
+
+		// Sort by size
+		sort.Slice(currentResults, func(i, j int) bool {
+			si := currentResults[i].Size
+			if currentResults[i].IsDir {
+				si = currentResults[i].DirSize
+			}
+			sj := currentResults[j].Size
+			if currentResults[j].IsDir {
+				sj = currentResults[j].DirSize
+			}
+			return si > sj
+		})
+
+		if n > len(currentResults) {
+			n = len(currentResults)
+		}
+		return currentResults[:n]
+
+	case "smallest":
+		// Get N smallest from current results
+		n := 1
+		if param != "" {
+			n, _ = strconv.Atoi(param)
+		}
+
+		sort.Slice(currentResults, func(i, j int) bool {
+			si := currentResults[i].Size
+			if currentResults[i].IsDir {
+				si = currentResults[i].DirSize
+			}
+			sj := currentResults[j].Size
+			if currentResults[j].IsDir {
+				sj = currentResults[j].DirSize
+			}
+			return si < sj
+		})
+
+		if n > len(currentResults) {
+			n = len(currentResults)
+		}
+		return currentResults[:n]
+
+	case "recent":
+		// Filter by days from current results
+		days := 7
+		if param != "" {
+			days, _ = strconv.Atoi(param)
+		}
+
+		filterDate := time.Now().AddDate(0, 0, -days)
+		filtered := []scanner.Metadata{}
+		for _, item := range currentResults {
+			if item.ModificationTime.After(filterDate) {
+				filtered = append(filtered, item)
+			}
+		}
+		return filtered
+
+	case "oldest":
+		// Filter by days from current results
+		days := 30
+		if param != "" {
+			days, _ = strconv.Atoi(param)
+		}
+
+		filterDate := time.Now().AddDate(0, 0, -days)
+		filtered := []scanner.Metadata{}
+		for _, item := range currentResults {
+			if item.ModificationTime.Before(filterDate) {
+				filtered = append(filtered, item)
+			}
+		}
+		return filtered
+
+	case "search":
+		// Search within current results only
+		if param == "" {
+			return currentResults
+		}
+
+		// Create a temporary scanner with only current results
+		tempScanner := &scanner.Scanner{
+			Results: currentResults,
+		}
+
+		opts := scanner.SearchOptions{
+			Pattern: param,
+		}
+
+		searchResults := tempScanner.Search(opts)
+
+		// Convert back to Metadata
+		filtered := []scanner.Metadata{}
+		for _, sr := range searchResults {
+			for _, item := range currentResults {
+				if item.Location == sr.Location {
+					filtered = append(filtered, item)
+					break
+				}
+			}
+		}
+		return filtered
+
+	case "extension":
+		// Filter by extension
+		filtered := []scanner.Metadata{}
+		for _, item := range currentResults {
+			if item.Extension == param {
+				filtered = append(filtered, item)
+			}
+		}
+		return filtered
+	}
+
+	return currentResults
 }
 
 // filterByExtension filters results by extension

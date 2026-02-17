@@ -11,10 +11,11 @@ import (
 var (
 	oldestFiles bool
 	oldestDirs  bool
+	oldestDays  int
 )
 
 var oldestCmd = &cobra.Command{
-	Use:   "oldest [n] [path]",
+	Use:   "oldest [n] [path] --days [n]",
 	Short: "Show the oldest files or directories",
 	Long:  `Display the files or directories that haven't been modified in a while by modifictaion time.`,
 	Args:  cobra.MaximumNArgs(2), // n and path are both optional
@@ -24,6 +25,7 @@ var oldestCmd = &cobra.Command{
 func init() {
 	oldestCmd.Flags().BoolVar(&oldestFiles, "files", false, "Show only files")
 	oldestCmd.Flags().BoolVar(&oldestDirs, "dirs", false, "Show only DIrectories")
+	oldestCmd.Flags().IntVar(&oldestDays, "days", 0, "Show items not modified in last N days")
 
 	rootCmd.AddCommand(oldestCmd)
 }
@@ -63,12 +65,20 @@ func runOldest(cmd *cobra.Command, args []string) {
 
 	var results []scanner.Metadata
 
-	if largestFiles {
-		results = scan.GetNLeastModFiles(n)
-	} else if largestDirs {
-		results = scan.GetNLeastModDirs(n)
+	if oldestDays > 0 {
+		results = scan.GetFilesOlderThan(oldestDays)
 	} else {
-		results = scan.Results
+		if oldestFiles {
+			results = scan.GetNLeastModFiles(n)
+		} else if oldestDirs {
+			results = scan.GetNLeastModDirs(n)
+		} else {
+			results = scan.Results
+		}
+	}
+
+	if oldestDays > 0 && len(args) >= 1 && len(results) > n {
+		results = results[:n]
 	}
 
 	for _, elem := range results {

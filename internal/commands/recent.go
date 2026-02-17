@@ -11,10 +11,11 @@ import (
 var (
 	recentFiles bool
 	recentDirs  bool
+	recentDays  int
 )
 
 var recentCmd = &cobra.Command{
-	Use:   "recent [n] [path]",
+	Use:   "recent [n] [path] --days [n]",
 	Short: "Show the recently modified files or directories",
 	Long:  `Display the most recently modified files or directories by modifictaion time.`,
 	Args:  cobra.MaximumNArgs(2), // n and path are both optional
@@ -23,7 +24,8 @@ var recentCmd = &cobra.Command{
 
 func init() {
 	recentCmd.Flags().BoolVar(&recentFiles, "files", false, "Show only files")
-	recentCmd.Flags().BoolVar(&recentDirs, "dirs", false, "Show only DIrectories")
+	recentCmd.Flags().BoolVar(&recentDirs, "dirs", false, "Show only Directories")
+	recentCmd.Flags().IntVar(&recentDays, "days", 0, "Show files modified within last N days")
 
 	rootCmd.AddCommand(recentCmd)
 }
@@ -63,12 +65,20 @@ func runRecent(cmd *cobra.Command, args []string) {
 
 	var results []scanner.Metadata
 
-	if largestFiles {
-		results = scan.GetNRecentlyModFiles(n)
-	} else if largestDirs {
-		results = scan.GetNRecentlyModDirs(n)
+	if recentDays > 0 {
+		results = scan.GetFilesNewerThan(recentDays)
 	} else {
-		results = scan.Results
+		if recentFiles {
+			results = scan.GetNRecentlyModFiles(n)
+		} else if recentDirs {
+			results = scan.GetNRecentlyModDirs(n)
+		} else {
+			results = scan.Results
+		}
+	}
+
+	if recentDays > 0 && len(args) >= 1 && len(results) > n {
+		results = results[:n]
 	}
 
 	for _, elem := range results {

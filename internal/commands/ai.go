@@ -146,12 +146,15 @@ func executeRecentCommand(s *scanner.Scanner, cmd *ai.CommandParser) {
 func executeOldestCommand(s *scanner.Scanner, cmd *ai.CommandParser) {
 	var results []scanner.Metadata
 
-	if cmd.Flags["dirs"] {
-		results = s.GetNLeastModDirs(cmd.Count)
+	if cmd.Days > 0 {
+		results = s.GetFilesOlderThan(cmd.Days)
 	} else {
-		results = s.GetNLeastModFiles(cmd.Count)
+		if cmd.Flags["dirs"] {
+			results = s.GetNLeastModDirs(cmd.Count)
+		} else {
+			results = s.GetNLeastModFiles(cmd.Count)
+		}
 	}
-
 	if ext, ok := cmd.Filters["extension"]; ok && ext != "" {
 		results = filterByExtension(results, ext)
 	}
@@ -162,14 +165,18 @@ func executeOldestCommand(s *scanner.Scanner, cmd *ai.CommandParser) {
 func executeListCommand(s *scanner.Scanner, cmd *ai.CommandParser) {
 	var results []scanner.Metadata
 
-	if cmd.Flags["files"] {
-		results = s.GetFiles()
-	} else if cmd.Flags["dirs"] {
-		results = s.GetDirectories()
+	if cmd.Days > 0 {
+		results = s.GetFilesNewerThan(cmd.Days)
 	} else {
-		results = s.Results
-	}
 
+		if cmd.Flags["files"] {
+			results = s.GetFiles()
+		} else if cmd.Flags["dirs"] {
+			results = s.GetDirectories()
+		} else {
+			results = s.Results
+		}
+	}
 	if ext, ok := cmd.Filters["extension"]; ok && ext != "" {
 		results = filterByExtension(results, ext)
 	}

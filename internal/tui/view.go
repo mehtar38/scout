@@ -139,18 +139,18 @@ func (m Model) renderActiveTab() string {
 
 // renderDashboard renders the dashboard view with stats
 func (m Model) renderDashboard() string {
-	var b strings.Builder
+	var content strings.Builder
 
 	files := m.scanner.GetFiles()
 	dirs := m.scanner.GetDirectories()
 
-	// Overview section
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("System Statistics"))
-	b.WriteString("\n\n")
-	b.WriteString(fmt.Sprintf("  Total Items: %d\n", len(files)+len(dirs)))
-	b.WriteString(fmt.Sprintf("  Files: %d\n", len(files)))
-	b.WriteString(fmt.Sprintf("  Directories: %d\n", len(dirs)))
-	b.WriteString("\n")
+	// Build ALL content first (don't truncate)
+	content.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("System Statistics"))
+	content.WriteString("\n\n")
+	content.WriteString(fmt.Sprintf("  Total Items: %d\n", len(files)+len(dirs)))
+	content.WriteString(fmt.Sprintf("  Files: %d\n", len(files)))
+	content.WriteString(fmt.Sprintf("  Directories: %d\n", len(dirs)))
+	content.WriteString("\n")
 
 	// Size statistics
 	var totalFileSize, totalDirSize int64
@@ -161,29 +161,29 @@ func (m Model) renderDashboard() string {
 		totalDirSize += d.DirSize
 	}
 
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("Size Statistics"))
-	b.WriteString("\n\n")
-	b.WriteString(fmt.Sprintf("  Total Size: %s\n", formatSize(totalFileSize+totalDirSize)))
-	b.WriteString(fmt.Sprintf("  Files: %s\n", formatSize(totalFileSize)))
-	b.WriteString(fmt.Sprintf("  Directories: %s\n", formatSize(totalDirSize)))
+	content.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("Size Statistics"))
+	content.WriteString("\n\n")
+	content.WriteString(fmt.Sprintf("  Total Size: %s\n", formatSize(totalFileSize+totalDirSize)))
+	content.WriteString(fmt.Sprintf("  Files: %s\n", formatSize(totalFileSize)))
+	content.WriteString(fmt.Sprintf("  Directories: %s\n", formatSize(totalDirSize)))
 	if len(files) > 0 {
-		b.WriteString(fmt.Sprintf("  Avg File Size: %s\n", formatSize(totalFileSize/int64(len(files)))))
+		content.WriteString(fmt.Sprintf("  Avg File Size: %s\n", formatSize(totalFileSize/int64(len(files)))))
 	}
 	if len(dirs) > 0 {
-		b.WriteString(fmt.Sprintf("  Avg Dir Size: %s\n", formatSize(totalDirSize/int64(len(dirs)))))
+		content.WriteString(fmt.Sprintf("  Avg Dir Size: %s\n", formatSize(totalDirSize/int64(len(dirs)))))
 	}
-	b.WriteString("\n")
+	content.WriteString("\n")
 
 	// Largest and smallest
 	if len(files) > 0 {
 		largest := m.scanner.GetNLargestFilesBySize(1)
 		smallest := m.scanner.GetNSmallestFilesBySize(1)
 
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("Extremes"))
-		b.WriteString("\n\n")
-		b.WriteString(fmt.Sprintf("  Largest: %s (%s)\n", largest[0].Name, formatSize(largest[0].Size)))
-		b.WriteString(fmt.Sprintf("  Smallest: %s (%s)\n", smallest[0].Name, formatSize(smallest[0].Size)))
-		b.WriteString("\n")
+		content.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("Extremes"))
+		content.WriteString("\n\n")
+		content.WriteString(fmt.Sprintf("  Largest: %s (%s)\n", largest[0].Name, formatSize(largest[0].Size)))
+		content.WriteString(fmt.Sprintf("  Smallest: %s (%s)\n", smallest[0].Name, formatSize(smallest[0].Size)))
+		content.WriteString("\n")
 	}
 
 	// Recent activity
@@ -191,11 +191,11 @@ func (m Model) renderDashboard() string {
 		recent := m.scanner.GetNRecentlyModFiles(1)
 		oldest := m.scanner.GetNLeastModFiles(1)
 
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("Modification Times"))
-		b.WriteString("\n\n")
-		b.WriteString(fmt.Sprintf("  Most Recent: %s (%s)\n", recent[0].Name, recent[0].ModificationTime.Format("2006-01-02 15:04")))
-		b.WriteString(fmt.Sprintf("  Oldest: %s (%s)\n", oldest[0].Name, oldest[0].ModificationTime.Format("2006-01-02 15:04")))
-		b.WriteString("\n")
+		content.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("Modification Times"))
+		content.WriteString("\n\n")
+		content.WriteString(fmt.Sprintf("  Most Recent: %s (%s)\n", recent[0].Name, recent[0].ModificationTime.Format("2006-01-02 15:04")))
+		content.WriteString(fmt.Sprintf("  Oldest: %s (%s)\n", oldest[0].Name, oldest[0].ModificationTime.Format("2006-01-02 15:04")))
+		content.WriteString("\n")
 	}
 
 	// File type breakdown
@@ -207,10 +207,9 @@ func (m Model) renderDashboard() string {
 	}
 
 	if len(extCounts) > 0 {
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("Extensions"))
-		b.WriteString("\n\n")
+		content.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("Extensions"))
+		content.WriteString("\n\n")
 
-		// Sort by count
 		type extCount struct {
 			ext   string
 			count int
@@ -223,19 +222,34 @@ func (m Model) renderDashboard() string {
 			return exts[i].count > exts[j].count
 		})
 
-		// Show top 5
 		for i, ec := range exts {
-			if i >= 5 {
+			if i >= 10 { // Show top 10
 				break
 			}
-			b.WriteString(fmt.Sprintf("  %s: %d files\n", ec.ext, ec.count))
+			content.WriteString(fmt.Sprintf("  %s: %d files\n", ec.ext, ec.count))
 		}
 	}
 
-	return borderStyle.Render(b.String())
+	// Now apply scrolling to the content
+	allLines := strings.Split(content.String(), "\n")
+	visibleHeight := m.height - 12 // Account for header/footer
+
+	start := m.scrollOffset
+	end := start + visibleHeight
+	if end > len(allLines) {
+		end = len(allLines)
+	}
+
+	visibleContent := strings.Join(allLines[start:end], "\n")
+
+	if len(allLines) > visibleHeight {
+		visibleContent += "\n" + dimTextStyle.Render(fmt.Sprintf("Showing lines %d-%d of %d", start+1, end, len(allLines)))
+	}
+
+	return borderStyle.Render(visibleContent)
 }
 
-// renderBrowser renders the file browser view
+// renders the file browser view
 func (m Model) renderBrowser() string {
 	var b strings.Builder
 
@@ -248,7 +262,7 @@ func (m Model) renderBrowser() string {
 		m.getFilterModeName(),
 		m.getExtensionFilter())))
 	b.WriteString("\n")
-	b.WriteString(dimTextStyle.Render("s: sort | S: reverse | f: filter | e: ext. filter | o: open"))
+	b.WriteString(dimTextStyle.Render("s: sort | S: reverse | f: filter | e: ext. filter | o: open  | c: reset"))
 	b.WriteString("\n\n")
 
 	// Get and display items
@@ -298,16 +312,16 @@ func (m Model) renderBrowser() string {
 		b.WriteString("\n")
 	}
 
-	// // Show scroll indicator
-	// if len(items) > visibleHeight {
-	// 	b.WriteString("\n")
-	// 	b.WriteString(dimTextStyle.Render(fmt.Sprintf("Showing %d-%d of %d items", start+1, end, len(items))))
-	// }
+	// Show scroll indicator
+	if len(items) > visibleHeight {
+		b.WriteString("\n")
+		b.WriteString(dimTextStyle.Render(fmt.Sprintf("Showing %d-%d of %d items", start+1, end, len(items))))
+	}
 
 	return borderStyle.Render(b.String())
 }
 
-// renderSearch renders the search view
+// renders the search view
 func (m Model) renderSearch() string {
 	var b strings.Builder
 
@@ -340,6 +354,11 @@ func (m Model) renderSearch() string {
 	b.WriteString(dimTextStyle.Render(fmt.Sprintf("r: regex [%s] | c: case-sensitive [%s]| o: open", regexStatus, caseStatus)))
 	b.WriteString("\n\n")
 
+	if m.searchLoading {
+		b.WriteString(lipgloss.NewStyle().Foreground(accentColor).Render("⏳ Scout's on it..."))
+		return borderStyle.Render(b.String())
+	}
+
 	// Results
 	if len(m.searchResults) > 0 {
 		b.WriteString(lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("Found matches in %d files:", len(m.searchResults))))
@@ -357,7 +376,7 @@ func (m Model) renderSearch() string {
 			end = len(m.searchResults)
 		}
 
-		for i := 0; i < end; i++ {
+		for i := start; i < end; i++ {
 			result := m.searchResults[i]
 			line := fmt.Sprintf("  %s: %d matches", result.Location, result.Matches)
 
@@ -369,12 +388,13 @@ func (m Model) renderSearch() string {
 			b.WriteString("\n")
 		}
 
+		// Show scroll indicator
 		if len(m.searchResults) > visibleHeight {
 			b.WriteString("\n")
 			b.WriteString(dimTextStyle.Render(fmt.Sprintf("Showing %d-%d of %d results", start+1, end, len(m.searchResults))))
 		}
 
-	} else if m.searchPattern != "" && !m.searchActive {
+	} else if m.searchPattern != "" && !m.searchActive && !m.searchLoading {
 		b.WriteString(dimTextStyle.Render("No matches found"))
 	}
 
@@ -386,65 +406,72 @@ func (m Model) renderAI() string {
 	var b strings.Builder
 
 	// Header
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("AI Assistant"))
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("Scout AI Assistant"))
 	b.WriteString("\n\n")
 
-	if m.aiLoading {
-		b.WriteString(lipgloss.NewStyle().Foreground(accentColor).Render("⏳ Processing your query..."))
-		return borderStyle.Render(b.String())
-	}
-
-	// AI input
+	// Input box (highest priority - show when active)
 	if m.aiActive {
 		b.WriteString("Enter your query:\n")
 		b.WriteString(inputBoxStyle.Render("> " + m.aiInput + "█"))
 		b.WriteString("\n\n")
 		b.WriteString(dimTextStyle.Render("Example: \"find all PDF files larger than 5MB\""))
-	} else {
-		b.WriteString("Press Enter or / to ask a question\n\n")
+		return borderStyle.Render(b.String())
+	}
 
-		// Show last query and response
+	// Loading state (second priority - show while processing)
+	if m.aiLoading {
+		b.WriteString(lipgloss.NewStyle().Foreground(accentColor).Render("⏳ Processing your query..."))
+		b.WriteString("\n")
 		if m.aiQuery != "" {
-			b.WriteString(lipgloss.NewStyle().Bold(true).Render("Last Query:"))
-			b.WriteString("\n")
-			b.WriteString(fmt.Sprintf("  %s\n\n", m.aiQuery))
-
-			if m.aiResponse != "" {
-				b.WriteString(lipgloss.NewStyle().Bold(true).Render("Response:"))
-				b.WriteString("\n")
-				b.WriteString(fmt.Sprintf("  %s\n\n", m.aiResponse))
-			}
-
-			if len(m.aiResults) > 0 {
-				b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(accentColor).Render(fmt.Sprintf("✓ Found %d results", len(m.aiResults))))
-				b.WriteString("\n")
-				b.WriteString(dimTextStyle.Render("Press 'v' to view results in Browser tab"))
-				b.WriteString("\n\n")
-
-				// Show preview of first few results
-				b.WriteString("Preview:\n")
-				previewCount := 3
-				if len(m.aiResults) < previewCount {
-					previewCount = len(m.aiResults)
-				}
-				for i := 0; i < previewCount; i++ {
-					item := m.aiResults[i]
-					icon := "📄"
-					if item.IsDir {
-						icon = "📁"
-					}
-					b.WriteString(fmt.Sprintf("  %s %s (%s)\n", icon, item.Name, formatSize(item.Size)))
-				}
-				if len(m.aiResults) > previewCount {
-					b.WriteString(dimTextStyle.Render(fmt.Sprintf("  ... and %d more", len(m.aiResults)-previewCount)))
-				}
-			}
-		} else {
-			b.WriteString(dimTextStyle.Render("Naviagte thorugh with Scout! Try asking: \n"))
-			b.WriteString(dimTextStyle.Render("show me the 10 largest files\n"))
-			b.WriteString(dimTextStyle.Render("find all images modified this week\n"))
-			b.WriteString(dimTextStyle.Render("list all Go files\n"))
+			b.WriteString(dimTextStyle.Render(fmt.Sprintf("Query: %s", m.aiQuery)))
 		}
+		return borderStyle.Render(b.String())
+	}
+
+	// Normal view (show results or prompts)
+	b.WriteString("Press Enter or / to ask a question\n\n")
+
+	// Show last query and response
+	if m.aiQuery != "" {
+		b.WriteString(lipgloss.NewStyle().Bold(true).Render("Last Query:"))
+		b.WriteString("\n")
+		b.WriteString(fmt.Sprintf("  %s\n\n", m.aiQuery))
+
+		if m.aiResponse != "" {
+			b.WriteString(lipgloss.NewStyle().Bold(true).Render("Response:"))
+			b.WriteString("\n")
+			b.WriteString(fmt.Sprintf("  %s\n\n", m.aiResponse))
+		}
+
+		if len(m.aiResults) > 0 {
+			b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(accentColor).Render(fmt.Sprintf("✓ Found %d results", len(m.aiResults))))
+			b.WriteString("\n")
+			b.WriteString(dimTextStyle.Render("Press 'v' to view results in Browser tab"))
+			b.WriteString("\n\n")
+
+			// Show preview of first few results
+			b.WriteString("Preview:\n")
+			previewCount := 3
+			if len(m.aiResults) < previewCount {
+				previewCount = len(m.aiResults)
+			}
+			for i := 0; i < previewCount; i++ {
+				item := m.aiResults[i]
+				icon := "📄"
+				if item.IsDir {
+					icon = "📁"
+				}
+				b.WriteString(fmt.Sprintf("  %s %s (%s)\n", icon, item.Name, formatSize(item.Size)))
+			}
+			if len(m.aiResults) > previewCount {
+				b.WriteString(dimTextStyle.Render(fmt.Sprintf("  ... and %d more", len(m.aiResults)-previewCount)))
+			}
+		}
+	} else {
+		b.WriteString(dimTextStyle.Render("Navigate through with Scout! Try asking:\n"))
+		b.WriteString(dimTextStyle.Render("\n• show me the 10 largest files"))
+		b.WriteString(dimTextStyle.Render("\n• find all images modified this week"))
+		b.WriteString(dimTextStyle.Render("\n• list all Go files"))
 	}
 
 	return borderStyle.Render(b.String())
@@ -493,7 +520,7 @@ func (m Model) renderStatusBar() string {
 		Render(status)
 }
 
-// getBrowserItems returns the items to display in browser based on filters and sorts
+// returns the items to display in browser based on filters and sorts
 func (m Model) getBrowserItems() []scanner.Metadata {
 	var items []scanner.Metadata
 
@@ -540,6 +567,16 @@ func (m Model) getBrowserItems() []scanner.Metadata {
 			}
 			items = filtered
 		}
+	}
+
+	if m.filterExt != "" {
+		filtered := []scanner.Metadata{}
+		for _, item := range items {
+			if item.Extension == m.filterExt {
+				filtered = append(filtered, item)
+			}
+		}
+		items = filtered
 	}
 
 	// Apply sort

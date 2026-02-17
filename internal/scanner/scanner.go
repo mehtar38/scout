@@ -247,6 +247,10 @@ func (s *Scanner) GetFilesOlderThan(days int) []Metadata {
 		}
 	}
 
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].ModificationTime.Before(files[j].ModificationTime)
+	})
+
 	return files
 }
 
@@ -259,6 +263,10 @@ func (s *Scanner) GetFilesNewerThan(days int) []Metadata {
 			files = append(files, file)
 		}
 	}
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].ModificationTime.After(files[j].ModificationTime)
+	})
 
 	return files
 }

@@ -21,8 +21,26 @@ Available flags (boolean):
 - "case_sensitive": Case-sensitive search (for search)
 - "verbose": Show detailed output like line numbers (for search)
 
+Time-bbased queries:
+When the user mentions time periods like "last X days", "X days ago", "not modified in X days":
+- Use the "days" field (NOT count)
+- "files modified in last 7 days" → recent command, days: 7
+- "find 10 files not modified in 30 days" → oldest command, days: 30, count: 10
+- "files older than 90 days" → oldest command, days: 90
+
 Available filters (string values):
 - "extension": File extension like ".pdf" or comma-separated ".mp4,.avi"
+
+CHAINING COMMANDS:
+When a query requires multiple filtering steps, use the "chain" array.
+Each chain step filters the results from the previous step.
+
+Chain format: ["command:param", "command:param", ...]
+Examples:
+- "largest:10" → get 10 largest
+- "recent:7" → get files from last 7 days
+- "search:meeting" → search for "meeting"
+- "extension:.pdf" → filter by extension
 
 User query: "%s"
 
@@ -36,6 +54,7 @@ Return ONLY valid JSON:
 {
   "command": "command_name",
   "count": number,
+  "days": number,
   "path": "directory_path",
   "flags": {
     "files": true/false,
@@ -58,13 +77,13 @@ Return ONLY a single JSON object.
 Never return a JSON array.
 If the user asks for multiple actions, put them in the "chain" field.
 
-
 Examples:
 
 Query: "find the 5 largest directories"
 {
   "command": "largest",
   "count": 5,
+  "days": 0,
   "path": ".",
   "flags": {"dirs": true, "files": false},
   "filters": {},
@@ -76,6 +95,7 @@ Query: "list all PDF files"
 {
   "command": "list",
   "count": 0,
+  "days": 0,
   "path": ".",
   "flags": {"files": true, "dirs": false},
   "filters": {"extension": ".pdf"},
@@ -87,6 +107,7 @@ Query: "search for 'TODO' in go files with line numbers"
 {
   "command": "search",
   "count": 0,
+  "days": 0,
   "path": ".",
   "flags": {"verbose": true, "regex": false, "case_sensitive": false},
   "filters": {"extension": ".go"},
@@ -98,6 +119,7 @@ Query: "show me statistics"
 {
   "command": "stats",
   "count": 0,
+  "days": 0,
   "path": ".",
   "flags": {},
   "filters": {},

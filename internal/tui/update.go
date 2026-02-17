@@ -141,13 +141,31 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // input in dashboard view
 func (m Model) handleDashboardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Build content to calculate total lines
+	files := m.scanner.GetFiles()
+	if len(files) == 0 {
+		return m, nil
+	}
+
+	totalLines := 40 //estimate
+	visibleHeight := m.height - 12
+
 	switch msg.String() {
 	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
+		if m.scrollOffset > 0 {
+			m.scrollOffset--
 		}
 	case "down", "j":
-		m.cursor++
+		if m.scrollOffset < totalLines-visibleHeight {
+			m.scrollOffset++
+		}
+	case "g":
+		m.scrollOffset = 0
+	case "G":
+		m.scrollOffset = totalLines - visibleHeight
+		if m.scrollOffset < 0 {
+			m.scrollOffset = 0
+		}
 	}
 	return m, nil
 }
@@ -204,6 +222,10 @@ func (m Model) handleBrowserKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		// Clear AI results and go back to normal browsing
 		if m.showingAIResults {
+			m.filterExt = ""
+			m.filterMode = FilterAll
+			m.sortMode = SortByName
+			m.sortReverse = false
 			m.aiResults = []scanner.Metadata{}
 			m.showingAIResults = false
 			m.cursor = 0
@@ -296,6 +318,22 @@ func (m Model) handleSearchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.scrollOffset = m.cursor - visibleHeight + 1
 			}
 		}
+	case "o":
+		if len(m.searchResults) > 0 && m.cursor < len(m.searchResults) {
+			result := m.searchResults[m.cursor]
+			var cmd *exec.Cmd
+			switch runtime.GOOS {
+			case "darwin":
+				cmd = exec.Command("open", "-R", result.Location)
+			case "windows":
+				cmd = exec.Command("explorer", "/select,", result.Location)
+			default:
+				cmd = exec.Command("xdg-open", filepath.Dir(result.Location))
+			}
+			if cmd != nil {
+				cmd.Start()
+			}
+		}
 	}
 	return m, nil
 }
@@ -356,6 +394,7 @@ func (m Model) handleAIInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.aiInput != "" {
 			m.aiQuery = m.aiInput
 			m.aiActive = false
+			m.aiLoading = true
 			return m, executeAIQuery(m.aiInput, m.scanner)
 		}
 		m.aiActive = false
@@ -463,17 +502,54 @@ func executeAICommandForTUI(cmd *ai.CommandParser, s *scanner.Scanner) []scanner
 			results = s.GetNSmallestFilesBySize(cmd.Count)
 		}
 	case "recent":
-		if cmd.Flags["dirs"] {
-			results = s.GetNRecentlyModDirs(cmd.Count)
+		if cmd.Days > 0 {
+			results = s.GetFilesNewerThan(cmd.Days)
+			// if cmd.Count > 0 && len(results) > cmd.Count {
+			// 	results = results[:cmd.Count]
+			// }
 		} else {
-			results = s.GetNRecentlyModFiles(cmd.Count)
+			if cmd.Flags["dirs"] {
+				results = s.GetNRecentlyModDirs(cmd.Count)
+			} else {
+				results = s.GetNRecentlyModFiles(cmd.Count)
+			}
 		}
 	case "oldest":
-		if cmd.Flags["dirs"] {
-			results = s.GetNLeastModDirs(cmd.Count)
+		if cmd.Days > 0 {
+			results = s.GetFilesOlderThan(cmd.Days)
+
+			// if cmd.Count > 0 && len(results) > cmd.Count {
+			// 	results = results[:cmd.Count]
+			// }
 		} else {
-			results = s.GetNLeastModFiles(cmd.Count)
+			if cmd.Flags["dirs"] {
+				results = s.GetNLeastModDirs(cmd.Count)
+			} else {
+				results = s.GetNLeastModFiles(cmd.Count)
+			}
 		}
+	case "search":
+		opts := scanner.SearchOptions{
+			Pattern:       cmd.Pattern,
+			UseRegex:      cmd.Flags["regex"],
+			CaseSensitive: cmd.Flags["case_sensitive"],
+		}
+
+		if ext, ok := cmd.Filters["extension"]; ok && ext != "" {
+			opts.Extensions = strings.Split(ext, ",")
+		}
+
+		searchResults := s.Search(opts)
+
+		for _, sr := range searchResults {
+			for _, item := range s.Results {
+				if item.Location == sr.Location {
+					results = append(results, item)
+					break
+				}
+			}
+		}
+
 	}
 
 	// Apply extension filter if present

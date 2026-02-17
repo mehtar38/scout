@@ -70,6 +70,18 @@ type Model struct {
 	showingAIResults bool
 	aiLoading        bool
 
+	//File actions with API
+	selectedFile            *scanner.Metadata
+	showActionMenu          bool
+	actionMenuCursor        int
+	fileActionLoading       bool
+	fileActionResult        string
+	showActionResult        bool
+	fileActionType          string
+	fileActionScrollOffset  int
+	fileQuestionInput       string // Store the text for "Ask a Question"
+	fileQuestionInputActive bool
+
 	width  int
 	height int
 	ready  bool
@@ -104,6 +116,10 @@ type scanCompleteMsg struct {
 type searchCompleteMsg struct {
 	results []scanner.SearchResult
 	err     error
+}
+type fileActionCompleteMsg struct {
+	result string
+	err    error
 }
 
 // Commands

@@ -58,12 +58,6 @@ var (
 			BorderForeground(primaryColor).
 			Padding(1, 2)
 
-	// Status bar style
-	statusBarStyle = lipgloss.NewStyle().
-			Foreground(textColor).
-			Background(dimColor).
-			Padding(0, 1)
-
 	// Input styles
 	inputBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -71,7 +65,7 @@ var (
 			Padding(0, 1)
 )
 
-// View renders the entire TUI
+// renders the entire TUI
 func (m Model) View() string {
 	if !m.ready {
 		return "Initializing..."
@@ -95,7 +89,28 @@ func (m Model) View() string {
 	} else if !m.scanned {
 		b.WriteString(dimTextStyle.Render("⏳ Scout is scanning your files..."))
 	} else {
-		b.WriteString(m.renderActiveTab())
+		tabContent := m.renderActiveTab()
+
+		// Show overlay if action menu or result is active
+		if m.showActionMenu {
+			overlay := m.renderActionMenu()
+			tabContent = m.overlayOnContent(tabContent, overlay)
+		} else if m.fileActionLoading {
+			overlay := borderStyle.Render("⏳ Scout is working on it...")
+			tabContent = m.overlayOnContent(tabContent, overlay)
+		} else if m.showActionResult {
+			overlay := m.renderActionResult()
+			tabContent = m.overlayOnContent(tabContent, overlay)
+		} else if m.fileQuestionInputActive {
+			overlay := borderStyle.Width(60).Render(
+				titleStyle.Render("Ask a question about "+m.selectedFile.Name) + "\n\n" +
+					"> " + m.fileQuestionInput + "█" + "\n\n" +
+					dimTextStyle.Render("enter: ask | esc: cancel"),
+			)
+			tabContent = m.overlayOnContent(tabContent, overlay)
+		}
+
+		b.WriteString(tabContent)
 	}
 
 	// Status bar
@@ -105,7 +120,7 @@ func (m Model) View() string {
 	return b.String()
 }
 
-// renderTabs renders the tab navigation bar
+// renders the tab navigation bar
 func (m Model) renderTabs() string {
 	tabs := []string{"Dashboard", "Browser", "Search", "AI"}
 	var rendered []string
@@ -121,7 +136,7 @@ func (m Model) renderTabs() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
 }
 
-// renderActiveTab renders the content of the active tab
+// renders the content of the active tab
 func (m Model) renderActiveTab() string {
 	switch m.activeTab {
 	case TabDashboard:
@@ -137,14 +152,13 @@ func (m Model) renderActiveTab() string {
 	}
 }
 
-// renderDashboard renders the dashboard view with stats
+// dashboard view with stats
 func (m Model) renderDashboard() string {
 	var content strings.Builder
 
 	files := m.scanner.GetFiles()
 	dirs := m.scanner.GetDirectories()
 
-	// Build ALL content first (don't truncate)
 	content.WriteString(lipgloss.NewStyle().Bold(true).Foreground(secondaryColor).Render("System Statistics"))
 	content.WriteString("\n\n")
 	content.WriteString(fmt.Sprintf("  Total Items: %d\n", len(files)+len(dirs)))
@@ -262,7 +276,7 @@ func (m Model) renderBrowser() string {
 		m.getFilterModeName(),
 		m.getExtensionFilter())))
 	b.WriteString("\n")
-	b.WriteString(dimTextStyle.Render("s: sort | S: reverse | f: filter | e: ext. filter | o: open  | c: reset"))
+	b.WriteString(dimTextStyle.Render("s: sort | S: reverse | f: filter | e: ext. filter | o: open  | c: reset | a: select"))
 	b.WriteString("\n\n")
 
 	// Get and display items
@@ -518,6 +532,172 @@ func (m Model) renderStatusBar() string {
 		Width(m.width-4).
 		Padding(0, 1).
 		Render(status)
+}
+
+func (m Model) renderActionMenu() string {
+	var b strings.Builder
+
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(accentColor).Render("AI Actions"))
+	b.WriteString("\n\n")
+	b.WriteString(dimTextStyle.Render(fmt.Sprintf("File: %s", m.selectedFile.Name)))
+	b.WriteString("\n\n")
+
+	// if utils.IsPDF(m.selectedFile.Location) {
+	// 	b.WriteString(dimTextStyle.Render(" (PDF)"))
+	// } else if utils.IsTextFile(m.selectedFile.Location) {
+	// 	b.WriteString(dimTextStyle.Render(" (Text)"))
+	// } else {
+	// 	b.WriteString(errorStyle.Render(" (Unsupported)"))
+	// }
+
+	b.WriteString("\n\n")
+
+	actions := []string{
+		"Summarize document",
+		"Extract key points",
+		"Ask a question",
+		"Find information",
+		"Cancel",
+	}
+
+	for i, action := range actions {
+		if i == m.actionMenuCursor {
+			b.WriteString(selectedItemStyle.Render(fmt.Sprintf(" > %s", action)))
+		} else {
+			b.WriteString(fmt.Sprintf("   %s", action))
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(dimTextStyle.Render("↑↓: navigate | Enter: select | Esc: cancel"))
+
+	return borderStyle.Render(b.String())
+}
+
+func (m Model) renderActionResult() string {
+	var b strings.Builder
+
+	// 1. Setup Headers
+	actionName := map[string]string{
+		"summarize": "Summary",
+		"keypoints": "Key Points",
+		"question":  "Analysis",
+		"findinfo":  "Information",
+	}
+
+	headerTitle := actionName[m.fileActionType]
+	if headerTitle == "" {
+		headerTitle = "AI Analysis"
+	}
+
+	b.WriteString(titleStyle.Render(headerTitle))
+	b.WriteString("\n")
+	b.WriteString(dimTextStyle.Render(fmt.Sprintf("File: %s", m.selectedFile.Name)))
+	b.WriteString("\n\n")
+
+	// 2. Wrap the text based on current window width
+	maxWidth := 80
+	if m.width-10 < maxWidth {
+		maxWidth = m.width - 10
+	}
+
+	// Ensure we use your existing wordWrap utility
+	wrapped := wordWrap(m.fileActionResult, maxWidth)
+	lines := strings.Split(wrapped, "\n")
+
+	// 3. Scrolling Logic
+	maxHeight := m.height - 12
+	if maxHeight <= 0 {
+		maxHeight = 1
+	}
+
+	// Safety check: ensure offset isn't past the end
+	if m.fileActionScrollOffset > len(lines)-maxHeight {
+		m.fileActionScrollOffset = len(lines) - maxHeight
+	}
+	if m.fileActionScrollOffset < 0 {
+		m.fileActionScrollOffset = 0
+	}
+
+	start := m.fileActionScrollOffset
+	end := start + maxHeight
+	if end > len(lines) {
+		end = len(lines)
+	}
+
+	// 4. Content Rendering
+	// We only render the slice of lines based on the scroll offset
+	b.WriteString(strings.Join(lines[start:end], "\n"))
+
+	// 5. Footer and Scroll Indicator
+	b.WriteString("\n\n")
+	if len(lines) > maxHeight {
+		b.WriteString(dimTextStyle.Render(fmt.Sprintf("Line %d-%d of %d (↑/↓ to scroll)", start+1, end, len(lines))))
+		b.WriteString(" | ")
+	}
+	b.WriteString(dimTextStyle.Render("Esc: close"))
+
+	// 6. Wrap in Border and Place on screen
+	// borderStyle.Width ensures the box doesn't resize weirdly while scrolling
+	resultBox := borderStyle.Width(maxWidth + 4).Render(b.String())
+
+	// This places the resultBox on top of the browser view, shifted to the left
+	return m.overlayOnContent(m.renderBrowser(), resultBox)
+}
+
+// Add word wrap helper
+func wordWrap(text string, width int) string {
+	if width <= 0 {
+		width = 80
+	}
+
+	var result strings.Builder
+	lines := strings.Split(text, "\n")
+
+	for _, line := range lines {
+		if len(line) <= width {
+			result.WriteString(line)
+			result.WriteString("\n")
+			continue
+		}
+
+		// Wrap long lines
+		words := strings.Fields(line)
+		currentLine := ""
+
+		for _, word := range words {
+			if len(currentLine)+len(word)+1 <= width {
+				if currentLine != "" {
+					currentLine += " "
+				}
+				currentLine += word
+			} else {
+				result.WriteString(currentLine)
+				result.WriteString("\n")
+				currentLine = word
+			}
+		}
+
+		if currentLine != "" {
+			result.WriteString(currentLine)
+			result.WriteString("\n")
+		}
+	}
+
+	return result.String()
+}
+
+func (m Model) overlayOnContent(content, overlay string) string {
+	return lipgloss.Place(
+		m.width,  // Total width of the screen
+		m.height, // Total height of the screen
+		lipgloss.Left,
+		lipgloss.Center,
+		overlay,
+		lipgloss.WithWhitespaceChars(" "),
+		lipgloss.WithWhitespaceForeground(dimColor), // Optional: dim the background
+	)
 }
 
 // returns the items to display in browser based on filters and sorts

@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"scout/internal/ai"
 	"scout/internal/scanner"
+	"scout/internal/utils"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,6 +19,51 @@ import (
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+
+	// INTERCEPTOR 1: If typing a question
+	if m.fileQuestionInputActive {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "enter":
+				query := m.fileQuestionInput
+				m.fileQuestionInputActive = false
+				m.fileQuestionInput = ""
+				m.fileActionLoading = true
+				return m, performFileAction(m.selectedFile.Location, "question", query) // Issue #4 fixed
+			case "esc":
+				m.fileQuestionInputActive = false
+				return m, nil
+			case "backspace":
+				if len(m.fileQuestionInput) > 0 {
+					m.fileQuestionInput = m.fileQuestionInput[:len(m.fileQuestionInput)-1]
+				}
+			default:
+				if len(key.String()) == 1 {
+					m.fileQuestionInput += key.String()
+				}
+			}
+		}
+		return m, nil
+	}
+
+	// INTERCEPTOR 2: If viewing a result (Fixes Issue #3)
+	if m.showActionResult {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "up":
+				if m.fileActionScrollOffset > 0 {
+					m.fileActionScrollOffset--
+				}
+			case "down":
+				m.fileActionScrollOffset++
+			case "esc":
+				m.showActionResult = false
+				m.fileActionScrollOffset = 0
+			}
+		}
+		return m, nil
+	}
+
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -58,6 +104,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.aiResults = msg.results
 		return m, nil
 
+	case fileActionCompleteMsg:
+		m.fileActionLoading = false
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
+		m.fileActionResult = msg.result
+		m.showActionResult = true
+		m.fileActionScrollOffset = 1
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
 	}
@@ -67,6 +124,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	//Global keys
+
+	if m.showActionMenu {
+		return m.handleActionMenuKeys(msg)
+	}
+	if m.showActionResult {
+		return m.handleActionResultKeys(msg)
+	}
+
 	switch msg.String() {
 	case "ctrl+c", "q":
 		if !m.searchActive && !m.aiActive {
@@ -248,6 +313,16 @@ func (m Model) handleBrowserKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filterMode = (m.filterMode + 1) % 3
 		m.cursor = 0
 		m.scrollOffset = 0
+	case "a":
+		//ai actions
+		if m.showingAIResults && len(m.aiResults) > 0 {
+			items := m.getBrowserItems()
+			if m.cursor < len(items) {
+				m.selectedFile = &items[m.cursor]
+				m.showActionMenu = true
+				m.actionMenuCursor = 0
+			}
+		}
 	case "e":
 		// Cycle through extensions present in current results
 		// Get ALL items (not just filtered) to find all extensions
@@ -340,6 +415,60 @@ func (m Model) handleSearchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleActionMenuKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.actionMenuCursor > 0 {
+			m.actionMenuCursor--
+		}
+	case "down", "j":
+		if m.actionMenuCursor < 4 {
+			m.actionMenuCursor++
+		}
+	case "enter":
+		actions := []string{"Summarize document", "Extract key points", "Ask a question", "Find information", "Cancel"}
+		choice := actions[m.actionMenuCursor]
+
+		if choice == "Cancel" {
+			m.showActionMenu = false
+			return m, nil
+		}
+
+		if choice == "Ask a question" {
+			m.showActionMenu = false
+			m.fileQuestionInputActive = true // Transitions to typing mode
+			return m, nil
+		}
+
+		// For actions that don't need typing:
+		m.showActionMenu = false
+		m.fileActionLoading = true
+
+		actionMap := map[string]string{
+			"Summarize document": "summarize",
+			"Extract key points": "keypoints",
+			"Find information":   "findinfo",
+		}
+		return m, performFileAction(m.selectedFile.Location, actionMap[choice], "")
+
+	case "esc":
+		m.showActionMenu = false
+		m.selectedFile = nil
+	}
+	return m, nil
+}
+
+func (m Model) handleActionResultKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q", "enter":
+		m.showActionResult = false
+		m.fileActionScrollOffset = 0
+		m.selectedFile = nil
+		m.fileActionResult = ""
+	}
+	return m, nil
+}
+
 // input for search
 func (m Model) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -394,10 +523,21 @@ func (m Model) handleAIInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		if m.aiInput != "" {
-			m.aiQuery = m.aiInput
+			// Check if we have a selected file (question mode)
+			if m.selectedFile != nil {
+				// This is a question about the file
+				m.aiActive = false
+				m.fileActionLoading = true
+				return m, performFileQuestion(m.selectedFile.Location, m.aiInput)
+			}
+
+			// Normal AI query
+			query := m.aiInput
+			m.aiQuery = query
+			m.aiInput = ""
 			m.aiActive = false
 			m.aiLoading = true
-			return m, executeAIQuery(m.aiInput, m.scanner)
+			return m, executeAIQuery(query, m.scanner)
 		}
 		m.aiActive = false
 		return m, nil
@@ -412,6 +552,62 @@ func (m Model) handleAIInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func performFileQuestion(filepath, question string) tea.Cmd {
+	return func() tea.Msg {
+		var content string
+		var err error
+
+		// Read file (PDF or text)
+		if utils.IsPDF(filepath) {
+			content, err = utils.ExtractPDFText(filepath)
+		} else if utils.IsTextFile(filepath) {
+			contentBytes, readErr := os.ReadFile(filepath)
+			if readErr != nil {
+				return fileActionCompleteMsg{err: fmt.Errorf("could not read file: %v", readErr)}
+			}
+			content = string(contentBytes)
+		} else {
+			return fileActionCompleteMsg{err: fmt.Errorf("unsupported file type")}
+		}
+
+		if err != nil {
+			return fileActionCompleteMsg{err: err}
+		}
+
+		// Truncate if needed
+		const maxChars = 100000
+		if len(content) > maxChars {
+			content = content[:maxChars] + "\n\n[Content truncated...]"
+		}
+
+		prompt := fmt.Sprintf(`Answer this question about the document. Provide a clear, concise answer.
+
+Question: %s
+
+Document:
+%s`, question, content)
+
+		// Call AI
+		godotenv.Load()
+		apiKey := os.Getenv("GEMINI_API_KEY")
+		if apiKey == "" {
+			return fileActionCompleteMsg{err: fmt.Errorf("GEMINI_API_KEY not found")}
+		}
+
+		aiClient, err := ai.NewClient(apiKey)
+		if err != nil {
+			return fileActionCompleteMsg{err: err}
+		}
+
+		result, err := aiClient.ProcessDocument(prompt)
+		if err != nil {
+			return fileActionCompleteMsg{err: err}
+		}
+
+		return fileActionCompleteMsg{result: result}
+	}
 }
 
 // sent when AI query finishes
@@ -766,13 +962,69 @@ func filterByExtension(files []scanner.Metadata, extensions string) []scanner.Me
 	return filtered
 }
 
-// Update handler for AI query completion
-func (m Model) updateAIComplete(msg aiQueryCompleteMsg) (Model, tea.Cmd) {
-	if msg.err != nil {
-		m.err = msg.err
-		return m, nil
+// file Actions - second API layer
+func performFileAction(filepath, actionType string, customQuery string) tea.Cmd {
+	return func() tea.Msg {
+		var content string
+		var err error
+
+		// Handle different file types
+		if utils.IsPDF(filepath) {
+			content, err = utils.ExtractPDFText(filepath)
+			if err != nil {
+				return fileActionCompleteMsg{err: fmt.Errorf("could not read PDF: %v", err)}
+			}
+		} else if utils.IsTextFile(filepath) {
+			contentBytes, readErr := os.ReadFile(filepath)
+			if readErr != nil {
+				return fileActionCompleteMsg{err: fmt.Errorf("could not read file: %v", readErr)}
+			}
+			content = string(contentBytes)
+		} else {
+			return fileActionCompleteMsg{err: fmt.Errorf("unsupported file type - only text and PDF files are supported")}
+		}
+
+		// Check if content is empty
+		if strings.TrimSpace(content) == "" {
+			return fileActionCompleteMsg{err: fmt.Errorf("file appears to be empty or unreadable")}
+		}
+
+		// Truncate if too large (optional - keep for now to avoid huge costs)
+		const maxChars = 100000 // ~100KB of text
+		if len(content) > maxChars {
+			content = content[:maxChars] + "\n\n[Content truncated due to length...]"
+		}
+
+		// Build prompt based on action
+		var prompt string
+		switch actionType {
+		case "summarize":
+			prompt = fmt.Sprintf(`Provide a clear, concise summary of this document in 3-5 sentences. Document:%s`, content)
+		case "keypoints":
+			prompt = fmt.Sprintf(`Extract the main points from this document. Format as a simple numbered list (1., 2., etc.). Document: %s`, content)
+		case "question":
+			prompt = fmt.Sprintf("Based on this document: %s\n\nQuestion: %s", content, customQuery)
+		case "findinfo":
+			prompt = fmt.Sprintf(`Describe the main topics and important details in this document in plain text. Be specific and organized. Document: %s`, content)
+		}
+
+		// Call AI
+		godotenv.Load()
+		apiKey := os.Getenv("GEMINI_API_KEY")
+		if apiKey == "" {
+			return fileActionCompleteMsg{err: fmt.Errorf("GEMINI_API_KEY not found")}
+		}
+
+		aiClient, err := ai.NewClient(apiKey)
+		if err != nil {
+			return fileActionCompleteMsg{err: err}
+		}
+
+		result, err := aiClient.ProcessDocument(prompt)
+		if err != nil {
+			return fileActionCompleteMsg{err: err}
+		}
+
+		return fileActionCompleteMsg{result: result}
 	}
-	m.aiResponse = msg.response
-	m.aiResults = msg.results
-	return m, nil
 }

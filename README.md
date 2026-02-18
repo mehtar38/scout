@@ -29,11 +29,24 @@ Scout is a powerful, AI-enhanced command-line file system analysis tool with an 
 
 ## 📸 Screenshots
 
-> Add your screenshots here:
 > - TUI Dashboard
-> - Browser with AI results
+![Stats View] (assests/images/tui.png)
+
+> - Browser interface
+![Browser View] (assests/images/tui2.png)
+
 > - Search interface
-> - AI action menu
+![Search View] (assests/images/searchTUI.png)
+
+> - AI interface
+(assests/images/AI1.png)
+
+(assests/images/AI2.png)
+
+(assests/images/aiSummary.png)
+
+> - CLI
+(assests/images/cli.png)
 
 ## 🚀 Quick Start
 
@@ -43,6 +56,28 @@ Scout is a powerful, AI-enhanced command-line file system analysis tool with an 
 - Gemini API key (for AI features)
 
 ### Installation
+
+You can install Scout in 2 ways:
+
+## Option 1: Install without cloning
+
+If you have Go installed, run: 
+   ```bash
+   go install github.com/mehtar38/scout/cmd/scout@latest
+   ```
+Then to enable AI features, set your Gemini API key in one of the 2 ways: 
+
+1. **Temporary (current terminal session only)**
+```bash 
+$env:GEMINI_API_KEY="your-api-key"
+```
+
+2. **Permanent**
+```bash 
+setx GEMINI_API_KEY "your-api-key"
+```
+
+## Option 2: Clone the Repository
 
 1. **Clone the repository**
    ```bash
@@ -63,7 +98,7 @@ Scout is a powerful, AI-enhanced command-line file system analysis tool with an 
 
 4. **Install globally**
    ```bash
-   go install ./cmd
+   go install ./cmd/scout
    ```
 
 5. **Run Scout**

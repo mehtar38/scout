@@ -46,7 +46,7 @@ Scout is a powerful, AI-enhanced command-line file system analysis tool with an 
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/scout.git
+   git clone https://github.com/mehtar38/scout/
    cd scout
    ```
 
@@ -63,7 +63,7 @@ Scout is a powerful, AI-enhanced command-line file system analysis tool with an 
 
 4. **Install globally**
    ```bash
-   go install
+   go install ./cmd
    ```
 
 5. **Run Scout**

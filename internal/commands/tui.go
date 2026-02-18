@@ -2,7 +2,8 @@ package commands
 
 import (
 	"fmt"
-	"scout/internal/tui"
+
+	"github.com/mehtar38/scout/internal/tui"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"

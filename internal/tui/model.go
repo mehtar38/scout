@@ -1,8 +1,9 @@
 package tui
 
 import (
-	"scout/internal/scanner"
 	"time"
+
+	"github.com/mehtar38/scout/internal/scanner"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

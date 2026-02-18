@@ -6,13 +6,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"scout/internal/ai"
-	"scout/internal/scanner"
-	"scout/internal/utils"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mehtar38/scout/internal/ai"
+	"github.com/mehtar38/scout/internal/scanner"
+	"github.com/mehtar38/scout/internal/utils"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/joho/godotenv"

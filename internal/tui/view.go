@@ -2,9 +2,10 @@ package tui
 
 import (
 	"fmt"
-	"scout/internal/scanner"
 	"sort"
 	"strings"
+
+	"github.com/mehtar38/scout/internal/scanner"
 
 	"github.com/charmbracelet/lipgloss"
 )

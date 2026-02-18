@@ -3,10 +3,11 @@ package commands
 import (
 	"fmt"
 	"os"
-	"scout/internal/ai"
-	"scout/internal/scanner"
-	"scout/internal/utils"
 	"strings"
+
+	"github.com/mehtar38/scout/internal/ai"
+	"github.com/mehtar38/scout/internal/scanner"
+	"github.com/mehtar38/scout/internal/utils"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"

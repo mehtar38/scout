@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"scout/internal/commands"
+
+	"github.com/mehtar38/scout/internal/commands"
 )
 
 func main() {

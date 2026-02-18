@@ -5,10 +5,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"scout/internal/utils"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/mehtar38/scout/internal/utils"
 )
 
 type Metadata struct {

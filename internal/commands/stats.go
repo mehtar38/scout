@@ -2,7 +2,8 @@ package commands
 
 import (
 	"fmt"
-	"scout/internal/scanner"
+
+	"github.com/mehtar38/scout/internal/scanner"
 
 	"github.com/spf13/cobra"
 )

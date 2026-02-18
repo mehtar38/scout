@@ -29,24 +29,23 @@ Scout is a powerful, AI-enhanced command-line file system analysis tool with an 
 
 ## 📸 Screenshots
 
-> - TUI Dashboard
-![Stats View] (assests/images/tui.png)
+### TUI Dashboard
+![Stats View](assets/images/tui.png)
 
-> - Browser interface
-![Browser View] (assests/images/tui2.png)
+### Browser interface
+![Browser View](assets/images/tui2.png)
 
-> - Search interface
-![Search View] (assests/images/searchTUI.png)
+### Search interface
+![Search View](assets/images/searchTUI.png)
 
-> - AI interface
-(assests/images/AI1.png)
+### AI interface
+![AI Example 1](assets/images/AI1.png)
+![AI Example 2](assets/images/AI2.png)
+![AI Summary](assets/images/aiSummary.png)
 
-(assests/images/AI2.png)
+### CLI
+![CLI](assets/images/cli.png)
 
-(assests/images/aiSummary.png)
-
-> - CLI
-(assests/images/cli.png)
 
 ## 🚀 Quick Start
 
@@ -61,18 +60,18 @@ You can install Scout in 2 ways:
 
 ## Option 1: Install without cloning
 
-If you have Go installed, run: 
+1. **If you have Go installed, run:**
    ```bash
    go install github.com/mehtar38/scout/cmd/scout@latest
    ```
-Then to enable AI features, set your Gemini API key in one of the 2 ways: 
+2. **Then to enable AI features, set your Gemini API key in one of the 2 ways:** 
 
-1. **Temporary (current terminal session only)**
+a. **Temporary (current terminal session only)**
 ```bash 
 $env:GEMINI_API_KEY="your-api-key"
 ```
 
-2. **Permanent**
+b. **Permanent**
 ```bash 
 setx GEMINI_API_KEY "your-api-key"
 ```

@@ -1,4 +1,4 @@
-module scout
+module github.com/mehtar38/scout
 
 go 1.25.3
 

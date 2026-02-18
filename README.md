@@ -66,15 +66,15 @@ You can install Scout in 2 ways:
    ```
 2. **Then to enable AI features, set your Gemini API key in one of the 2 ways:** 
 
-a. **Temporary (current terminal session only)**
-```bash 
-$env:GEMINI_API_KEY="your-api-key"
-```
+   a. **Temporary (current terminal session only)**
+   ```bash 
+      $env:GEMINI_API_KEY="your-api-key"
+   ```
 
-b. **Permanent**
-```bash 
-setx GEMINI_API_KEY "your-api-key"
-```
+   b. **Permanent**
+   ```bash 
+   setx GEMINI_API_KEY "your-api-key"
+   ```
 
 ## Option 2: Clone the Repository
 

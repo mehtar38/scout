@@ -417,10 +417,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **[Cobra](https://github.com/spf13/cobra)** - For the excellent CLI framework
 - **Go Community** - For comprehensive documentation and support
 
-## 📧 Contact
-
-**Project Link**: [https://github.com/yourusername/scout](https://github.com/yourusername/scout)
-
 ---
 
 <div align="center">

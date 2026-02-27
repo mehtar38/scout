@@ -83,5 +83,15 @@ Query: "files not modified in 30 days"
 Query: "show statistics"
 {"command":"stats","count":0,"days":0,"path":".","flags":{},"filters":{},"pattern":"","chain":[],"explanation":"Directory statistics"}
 
+Query: "find all meeting files"
+{
+  "command": "search",
+  "pattern": "meeting",
+  "flags": {"files": true},
+  "filters": {},
+  "chain": [],
+  "explanation": "Search for 'meeting' in file contents"
+}
+
 User query: "%s"`, userQuery)
 }

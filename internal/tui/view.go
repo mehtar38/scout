@@ -277,7 +277,13 @@ func (m Model) renderBrowser() string {
 		m.getFilterModeName(),
 		m.getExtensionFilter())))
 	b.WriteString("\n")
-	b.WriteString(dimTextStyle.Render("s: sort | S: reverse | f: filter | e: ext. filter | o: open  | c: reset | a: select"))
+	var helpText string
+	if m.showingAIResults {
+		helpText = "s: sort | S: reverse | f: filter | e: ext | o: open | c: reset | a: AI action"
+	} else {
+		helpText = "s: sort | S: reverse | f: filter | e: ext | o: open | c: reset"
+	}
+	b.WriteString(dimTextStyle.Render(helpText))
 	b.WriteString("\n\n")
 
 	// Get and display items
@@ -579,7 +585,7 @@ func (m Model) renderActionMenu() string {
 func (m Model) renderActionResult() string {
 	var b strings.Builder
 
-	// 1. Setup Headers
+	// Setup Headers
 	actionName := map[string]string{
 		"summarize": "Summary",
 		"keypoints": "Key Points",
@@ -605,7 +611,8 @@ func (m Model) renderActionResult() string {
 
 	// Ensure we use your existing wordWrap utility
 	wrapped := wordWrap(m.fileActionResult, maxWidth)
-	lines := strings.Split(wrapped, "\n")
+	rendered := renderMarkdown(wrapped)
+	lines := strings.Split(rendered, "\n")
 
 	// 3. Scrolling Logic
 	maxHeight := m.height - 12
@@ -627,11 +634,10 @@ func (m Model) renderActionResult() string {
 		end = len(lines)
 	}
 
-	// 4. Content Rendering
 	// We only render the slice of lines based on the scroll offset
 	b.WriteString(strings.Join(lines[start:end], "\n"))
 
-	// 5. Footer and Scroll Indicator
+	// Footer and Scroll Indicator
 	b.WriteString("\n\n")
 	if len(lines) > maxHeight {
 		b.WriteString(dimTextStyle.Render(fmt.Sprintf("Line %d-%d of %d (↑/↓ to scroll)", start+1, end, len(lines))))
@@ -639,12 +645,48 @@ func (m Model) renderActionResult() string {
 	}
 	b.WriteString(dimTextStyle.Render("Esc: close"))
 
-	// 6. Wrap in Border and Place on screen
+	// Wrap in Border and Place on screen
 	// borderStyle.Width ensures the box doesn't resize weirdly while scrolling
 	resultBox := borderStyle.Width(maxWidth + 4).Render(b.String())
 
-	// This places the resultBox on top of the browser view, shifted to the left
 	return m.overlayOnContent(m.renderBrowser(), resultBox)
+}
+
+// renderMarkdown converts basic markdown to styled text
+func renderMarkdown(text string) string {
+	lines := strings.Split(text, "\n")
+	var result strings.Builder
+
+	boldStyle := lipgloss.NewStyle().Bold(true).Foreground(textColor)
+
+	for _, line := range lines {
+		// Handle bold text: **text** -> styled text
+		rendered := line
+		for {
+			start := strings.Index(rendered, "**")
+			if start == -1 {
+				break
+			}
+
+			end := strings.Index(rendered[start+2:], "**")
+			if end == -1 {
+				break
+			}
+			end += start + 2
+
+			// Extract bold text
+			boldText := rendered[start+2 : end]
+			styledText := boldStyle.Render(boldText)
+
+			// Replace in string
+			rendered = rendered[:start] + styledText + rendered[end+2:]
+		}
+
+		result.WriteString(rendered)
+		result.WriteString("\n")
+	}
+
+	return result.String()
 }
 
 // Add word wrap helper

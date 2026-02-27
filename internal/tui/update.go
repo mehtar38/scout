@@ -187,7 +187,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if msg.String() == "r" || msg.String() == "f5" {
+	if msg.String() == "f5" {
+		m.scanning = true
+		return m, scanDirectory(m.path)
+	}
+	if msg.String() == "r" && m.activeTab != TabSearch {
 		m.scanning = true
 		return m, scanDirectory(m.path)
 	}
@@ -289,16 +293,14 @@ func (m Model) handleBrowserKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "c":
 		// Clear AI results and go back to normal browsing
-		if m.showingAIResults {
-			m.filterExt = ""
-			m.filterMode = FilterAll
-			m.sortMode = SortByName
-			m.sortReverse = false
-			m.aiResults = []scanner.Metadata{}
-			m.showingAIResults = false
-			m.cursor = 0
-			m.scrollOffset = 0
-		}
+		m.filterExt = ""
+		m.filterMode = FilterAll
+		m.sortMode = SortByName
+		m.sortReverse = false
+		m.aiResults = []scanner.Metadata{}
+		m.showingAIResults = false
+		m.cursor = 0
+		m.scrollOffset = 0
 	case "s":
 		// Cycle sort mode
 		m.sortMode = (m.sortMode + 1) % 4

@@ -21,7 +21,7 @@ func NewClient(apiKey string) (*Client, error) {
 		return nil, fmt.Errorf("failed to create AI client: %w", err)
 	}
 
-	model := client.GenerativeModel("gemini-2.5-flash")
+	model := client.GenerativeModel("gemini-2.5-flash-lite")
 
 	return &Client{
 		model: model,

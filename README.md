@@ -282,16 +282,16 @@ scout/
 
 ```bash
 # Development build
-go build -o scout cmd/main.go
+go build -o scout cmd/scout/main.go
 
 # Run without installing
-go run cmd/main.go <command>
+go run cmd/scout/main.go <command>
 
 # Run tests
 go test ./...
 
 # Run with debugging
-go run cmd/main.go tui 2> debug.log
+go run cmd/scout/main.go tui 2> debug.log
 ```
 
 ### Project Goals
@@ -310,15 +310,14 @@ Scout was built to:
 Scout can chain multiple operations:
 
 ```bash
-scout ai "find PDFs with 'report' and show 5 largest from last month"
+scout ai "find PDFs with 'report' and show the 5 largest ones from them"
 ```
 
 This breaks down into:
 1. Filter by extension (`.pdf`)
 2. Search content for "report"
-3. Filter by time (last 30 days)
-4. Sort by size
-5. Take top 5
+3. Sort by size
+4. Take top 5
 
 ### Concurrent Scanning
 
@@ -396,12 +395,12 @@ Contributions are welcome! This project was built as a learning experience, and 
 ### Development Process
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+2. Create a feature branch (`git checkout -b feature/feature-name`)
 3. Make your changes
 4. Follow Go best practices and project architecture
 5. Test thoroughly
-6. Commit with clear messages (`git commit -m 'Add amazing feature'`)
-7. Push to your branch (`git push origin feature/amazing-feature`)
+6. Commit with clear messages (`git commit -m 'Added [feature name]'`)
+7. Push to your branch (`git push origin feature/feature-name`)
 8. Open a Pull Request
 
 ## 📝 License

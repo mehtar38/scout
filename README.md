@@ -144,10 +144,8 @@ scout ai "find the 10 largest PDF files"
 scout ai "show me Go files modified this week"
 scout ai "find documents with 'meeting' in them"
 scout ai "what are the oldest files not touched in 90 days"
-
-# Complex chained queries
 scout ai "find 5 largest PDFs from last month"
-scout ai "search for TODO in Go files and show the 3 largest"
+scout ai "search for TODO in Go files"
 ```
 
 ### Interactive TUI
@@ -162,7 +160,7 @@ scout tui [path]
 
 **Global Controls:**
 - `1-4` or `Tab` - Switch between tabs
-- `r` / `F5` - Refresh/rescan directory
+- `r` - Refresh/rescan directory
 - `q` / `Ctrl+C` - Quit
 - `↑↓` or `jk` - Navigate (Vim-style supported)
 
